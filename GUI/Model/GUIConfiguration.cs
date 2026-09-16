@@ -65,6 +65,22 @@ namespace CKAN.GUI
         [DefaultValue(false)]
         public bool RefreshPaused = false;
 
+        /// <summary>
+        /// true to open with the card-based Discover browser, false for the classic
+        /// table. New users get the softer browsing experience by default.
+        /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate)]
+        [DefaultValue(true)]
+        public bool DiscoverView = true;
+
+        /// <summary>
+        /// The ranking the Discover view was last left on, as a
+        /// <see cref="DiscoverSortMode"/> value.
+        /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate)]
+        [DefaultValue(0)]
+        public int DiscoverSort = 0;
+
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate)]
         [DefaultValue(true)]
         public bool AutoSortByUpdate = true;

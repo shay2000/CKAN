@@ -182,8 +182,40 @@ namespace CKAN.GUI
             tabController = new TabController(MainTabControl);
             tabController.ShowTab(ManageModsTabPage.Name);
 
+            ApplySoftChrome();
+
             // Disable the modinfo controls until a mod has been choosen. This has an effect if the modlist is empty.
             ActiveModInfo = null;
+        }
+
+        /// <summary>
+        /// Restyle the window chrome (menu bar and status bar) to match the
+        /// soft Discover styling: flat surfaces, hairline separators, roomier
+        /// padding and a centred status message.
+        /// </summary>
+        private void ApplySoftChrome()
+        {
+            MainMenu.Renderer  = new SoftToolStripRenderer();
+            MainMenu.BackColor = SoftTheme.Surface;
+            MainMenu.ForeColor = SoftTheme.TextPrimary;
+            MainMenu.GripStyle = ToolStripGripStyle.Hidden;
+            MainMenu.Padding   = new Padding(10, 4, 0, 4);
+
+            statusStrip1.Renderer   = new SoftToolStripRenderer();
+            statusStrip1.BackColor  = SoftTheme.Backdrop;
+            statusStrip1.ForeColor  = SoftTheme.TextMuted;
+            statusStrip1.SizingGrip = false;
+            statusStrip1.Padding    = new Padding(8, 0, 12, 0);
+
+            StatusLabel.Font      = SoftTheme.MetaFont;
+            StatusLabel.ForeColor = SoftTheme.TextSecondary;
+            StatusLabel.Spring    = true;
+            // Centred, so a progress message reads as a single calm line
+            StatusLabel.TextAlign = ContentAlignment.MiddleCenter;
+
+            StatusInstanceLabel.Font      = SoftTheme.MetaFont;
+            StatusInstanceLabel.ForeColor = SoftTheme.TextMuted;
+            StatusInstanceLabel.Spring    = false;
         }
 
         protected override void OnLoad(EventArgs e)

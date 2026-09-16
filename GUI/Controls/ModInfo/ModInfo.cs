@@ -18,6 +18,10 @@ namespace CKAN.GUI
     #endif
     public partial class ModInfo : UserControl
     {
+        private readonly Changelog         changelogTab      = new Changelog();
+        private readonly ModChangelogService changelogService = new ModChangelogService();
+        private TabPage?                   changelogTabPage;
+
         public ModInfo()
         {
             InitializeComponent();
@@ -28,6 +32,36 @@ namespace CKAN.GUI
             Relationships.ModuleDoubleClicked += mod => ModuleDoubleClicked?.Invoke(mod);
             tagsLabelsLinkList.ShowHideTag += t => ShowHideTag?.Invoke(t);
             tagsLabelsLinkList.AddRemoveModuleLabel += l => AddRemoveModuleLabel?.Invoke(l);
+            AddChangelogTab();
+        }
+
+        /// <summary>
+        /// The Changelog tab is created in code rather than the designer so that
+        /// the existing localized tab layout stays untouched.
+        /// </summary>
+        private void AddChangelogTab()
+        {
+            changelogTabPage = new TabPage(Properties.Resources.ModInfoChangelogTab)
+            {
+                Name    = "ChangelogTabPage",
+                Padding = new Padding(6),
+                UseVisualStyleBackColor = true,
+            };
+            changelogTab.Dock = DockStyle.Fill;
+            changelogTab.SetService(changelogService);
+            changelogTab.SetRegistryProvider(CurrentRegistry);
+            changelogTabPage.Controls.Add(changelogTab);
+            ModInfoTabControl.Controls.Add(changelogTabPage);
+        }
+
+        private static IRegistryQuerier? CurrentRegistry()
+        {
+            if (manager?.CurrentInstance is GameInstance inst)
+            {
+                var repoData = ServiceLocator.Container.Resolve<RepositoryDataManager>();
+                return RegistryManager.Instance(inst, repoData).registry;
+            }
+            return null;
         }
 
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
@@ -107,6 +141,10 @@ namespace CKAN.GUI
                         // Workaround: make sure the ListView headers are drawn
                         Versions.ForceRedraw();
                     }
+                    break;
+
+                case "ChangelogTabPage":
+                    changelogTab.SelectedModule = gm;
                     break;
             }
         }
