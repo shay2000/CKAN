@@ -38,17 +38,28 @@ namespace CKAN.GUI
 
         protected override void OnDrawColumnHeader(DrawListViewColumnHeaderEventArgs e)
         {
-            // Background
-            e.Graphics.FillRectangle(SystemBrushes.Control, e.Bounds);
-            // Borders at the bottom and between header cells
-            Rectangle rect = e.Bounds;
-            rect.Inflate(1, 0);
-            rect.Offset(0, -1);
-            e.Graphics.DrawRectangle(SystemPens.ControlDark, rect);
-            // Text
+            // Drawn from the soft palette rather than SystemBrushes. These
+            // lists sit directly on the detail pane's white sheet, where the
+            // grey system chrome reads as a band belonging to a different
+            // application - and the 3D bevel it comes with is the last dated
+            // edge left in the pane.
+            using (var back = new SolidBrush(SoftTheme.Backdrop))
+            {
+                e.Graphics.FillRectangle(back, e.Bounds);
+            }
+
+            // A single hairline is what separates the header from the rows now
+            // that the bevel is gone.
+            using (var pen = new Pen(SoftTheme.Border))
+            {
+                e.Graphics.DrawLine(pen,
+                                    e.Bounds.Left, e.Bounds.Bottom - 1,
+                                    e.Bounds.Right, e.Bounds.Bottom - 1);
+            }
+
             var replacementEventArgs = new DrawListViewColumnHeaderEventArgs(
                                            e.Graphics, e.Bounds, e.ColumnIndex, e.Header, e.State,
-                                           e.BackColor.ForeColorForBackColor() ?? e.ForeColor, e.BackColor,
+                                           SoftTheme.TextSecondary, SoftTheme.Backdrop,
                                            Platform.IsMono
                                            && (int)e.Graphics.DpiX is int dpi
                                            && dpi != 96

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Globalization;
 using System.Windows.Forms;
 #if NET5_0_OR_GREATER
 using System.Runtime.Versioning;
@@ -33,8 +34,16 @@ namespace CKAN.GUI
     #endif
     public sealed class ModCard : Control
     {
-        public const int DesignWidth  = 216;
-        public const int DesignHeight = 316;
+        // The visual card is inset by ShadowSpread inside the control so the
+        // shadow has room without changing the CSS-sized card itself.
+        public const int DesignWidth  = 244;
+        public const int DesignHeight = 304;
+        public const int CompactWidth  = 190;
+        public const int CompactHeight = 268;
+        public const int CompactCoverHeight = 104;
+
+        /// <summary>Height of the artwork band in 96 DPI design units.</summary>
+        public const int DesignCoverHeight = 132;
 
         public ModCard(GUIMod mod)
         {
@@ -45,9 +54,55 @@ namespace CKAN.GUI
                      | ControlStyles.ResizeRedraw
                      | ControlStyles.Selectable, true);
             TabStop   = true;
-            Size      = new Size(DesignWidth, DesignHeight);
-            Margin    = new Padding(6, 4, 6, 12);
+            ApplyDesignSize();
             BackColor = SoftTheme.Backdrop;
+            DpiChangedAfterParent += (sender, e) =>
+            {
+                cachedDpi = 0f;
+                ApplyDesignSize();
+            };
+        }
+
+        private DiscoverDensity density = DiscoverDensity.Compact;
+
+        public DiscoverDensity Density => density;
+
+        public static int WidthFor(DiscoverDensity value)
+            => value == DiscoverDensity.Compact ? CompactWidth : DesignWidth;
+
+        public static int HeightFor(DiscoverDensity value)
+            => value == DiscoverDensity.Compact ? CompactHeight : DesignHeight;
+
+        public static int CoverHeightFor(DiscoverDensity value)
+            => value == DiscoverDensity.Compact ? CompactCoverHeight : DesignCoverHeight;
+
+        public void SetDensity(DiscoverDensity value)
+        {
+            if (density == value)
+            {
+                return;
+            }
+            density = value;
+            generatedCover?.Dispose();
+            generatedCover = null;
+            generatedCoverSize = Size.Empty;
+            ApplyDesignSize();
+            Invalidate();
+        }
+
+        /// <summary>
+        /// Size the control in the same DPI-scaled units the paint code uses.
+        /// The card's internal metrics (cover band, padding, action button) are all
+        /// scaled by <see cref="Dpi"/>, so leaving the control itself at the raw
+        /// 96 DPI design size makes the cover band overflow the card and pushes the
+        /// title down into the action button on any display above 100%.
+        /// </summary>
+        private void ApplyDesignSize()
+        {
+            Size   = new Size(SoftTheme.ScaleInt(WidthFor(density), Dpi),
+                              SoftTheme.ScaleInt(HeightFor(density), Dpi));
+            Margin = new Padding(SoftTheme.ScaleInt(6, Dpi), SoftTheme.ScaleInt(4, Dpi),
+                                 SoftTheme.ScaleInt(6, Dpi), SoftTheme.ScaleInt(12, Dpi));
         }
 
         /// <summary>The mod this card represents.</summary>
@@ -86,6 +141,8 @@ namespace CKAN.GUI
         }
 
         private Image? cover;
+        private Image? generatedCover;
+        private Size generatedCoverSize;
         /// <summary>
         /// Artwork supplied by the owner view. Setting a new image disposes the
         /// previous one, since the view hands ownership to the card.
@@ -102,6 +159,12 @@ namespace CKAN.GUI
                     var old = cover;
                     cover = value;
                     old?.Dispose();
+                    if (value != null)
+                    {
+                        generatedCover?.Dispose();
+                        generatedCover = null;
+                        generatedCoverSize = Size.Empty;
+                    }
                     Invalidate();
                 }
             }
@@ -149,12 +212,21 @@ namespace CKAN.GUI
             cachedDpi = 0f;
         }
 
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            // The constructor can run before a device context exists, in which case
+            // Dpi falls back to 96. Re-apply once the real DPI is known.
+            cachedDpi = 0f;
+            ApplyDesignSize();
+        }
+
         #region Layout
 
         private int Pad           => SoftTheme.ScaleInt(12, Dpi);
         private int Radius        => SoftTheme.ScaleInt(SoftTheme.RadiusCard, Dpi);
         private int ShadowSpread  => SoftTheme.ScaleInt(4, Dpi);
-        private int CoverHeight   => SoftTheme.ScaleInt(134, Dpi);
+        private int CoverHeight   => SoftTheme.ScaleInt(CoverHeightFor(density), Dpi);
         private int PillHeight    => SoftTheme.ScaleInt(19, Dpi);
         private int ActionHeight  => SoftTheme.ScaleInt(30, Dpi);
 
@@ -181,8 +253,8 @@ namespace CKAN.GUI
             get
             {
                 var card = CardRect;
-                int w = SoftTheme.ScaleInt(104, Dpi);
-                return new Rectangle(card.Right - Pad - w,
+                int w = card.Width - Pad * 2 - SoftTheme.ScaleInt(36, Dpi);
+                return new Rectangle(card.Left + Pad,
                                      card.Bottom - Pad - ActionHeight,
                                      w, ActionHeight);
             }
@@ -230,41 +302,25 @@ namespace CKAN.GUI
                 var authorFont = SoftTheme.CardAuthorFont;
                 var bodyFont = SoftTheme.CardBodyFont;
                 int y = contentTop;
-                int titleHeight = (int)Math.Ceiling(titleFont.GetHeight(g) * 2f);
+                int titleHeight = (int)Math.Ceiling(titleFont.GetHeight(g));
                 var titleRect = new Rectangle(contentLeft, y, contentWidth, titleHeight);
-                DrawTrimmed(g, Mod.Name, titleFont, titleBrush, titleRect, 2);
+                DrawTrimmed(g, Mod.Name, titleFont, titleBrush, titleRect, 1);
                 y = titleRect.Bottom;
 
+                // The download count lives on the artwork now, so the author
+                // line gets the full width to itself.
                 var authorText = string.Join(", ", Mod.Authors);
                 if (authorText.Length > 0)
                 {
                     int authorHeight = (int)Math.Ceiling(authorFont.GetHeight(g));
                     var authorRect = new Rectangle(contentLeft, y, contentWidth, authorHeight);
-                    string? downloads = Mod.DownloadCount.HasValue
-                        ? string.Format(Properties.Resources.DiscoverDownloads, Mod.DownloadCount.Value)
-                        : null;
-                    int downloadsWidth = downloads == null
-                        ? 0
-                        : (int)Math.Ceiling(g.MeasureString(downloads, authorFont).Width);
-                    int authorWidth = downloads == null
-                        ? contentWidth
-                        : Math.Max(0, contentWidth - downloadsWidth - SoftTheme.ScaleInt(8, Dpi));
-                    DrawTrimmed(g, authorText, authorFont, secondaryBrush,
-                                new Rectangle(authorRect.X, authorRect.Y, authorWidth, authorRect.Height), 1);
-                    if (downloads != null && authorWidth > 0)
-                    {
-                        TextRenderer.DrawText(g, downloads, authorFont,
-                                              new Point(contentLeft + contentWidth - downloadsWidth,
-                                                        authorRect.Y),
-                                              SoftTheme.TextMuted,
-                                              TextFormatFlags.NoPadding);
-                    }
+                    DrawTrimmed(g, authorText, authorFont, secondaryBrush, authorRect, 1);
                     y = authorRect.Bottom + SoftTheme.ScaleInt(3, Dpi);
                 }
 
-                int bodySpace = actionTop - SoftTheme.ScaleInt(8, Dpi) - y;
+                int bodySpace = actionTop - SoftTheme.ScaleInt(40, Dpi) - y;
                 int lineHeight = (int)Math.Ceiling(bodyFont.GetHeight(g));
-                if (bodySpace >= lineHeight)
+                if (density != DiscoverDensity.Compact && bodySpace >= lineHeight)
                 {
                     var bodyRect = new Rectangle(contentLeft, y, contentWidth,
                                                  Math.Min(bodySpace, lineHeight * 2));
@@ -321,13 +377,20 @@ namespace CKAN.GUI
                 // banner would otherwise spill down over the card text.
                 g.SetClip(area, CombineMode.Intersect);
 
-                if (cover is Image artwork && artwork.Width > 0 && artwork.Height > 0)
+                Image? artwork = cover;
+                if (artwork == null || artwork.Width <= 0 || artwork.Height <= 0)
                 {
-                    DrawImageCover(g, artwork, area);
+                    artwork = EnsureGeneratedCover(area.Size);
+                }
+
+                if (artwork is Image image && image.Width > 0 && image.Height > 0)
+                {
+                    DrawImageCover(g, image, area);
                 }
                 else
                 {
-                    // Neutral shimmer while the real artwork is on its way
+                    // A drawing failure is the only case that should reach this
+                    // placeholder; normal no-network cards use generatedCover.
                     using (var placeholder = new LinearGradientBrush(
                                area,
                                SoftTheme.SurfaceSunken,
@@ -358,6 +421,24 @@ namespace CKAN.GUI
             }
         }
 
+        private Image? EnsureGeneratedCover(Size size)
+        {
+            if (size.Width <= 0 || size.Height <= 0)
+            {
+                return null;
+            }
+            if (generatedCover == null || generatedCoverSize != size)
+            {
+                generatedCover?.Dispose();
+                generatedCover = ModArtGenerator.CreateFallbackCover(Mod.Identifier,
+                                                                       Mod.Name,
+                                                                       size.Width,
+                                                                       size.Height);
+                generatedCoverSize = size;
+            }
+            return generatedCover;
+        }
+
         private static void DrawImageCover(Graphics g, Image img, Rectangle target)
         {
             float scale = Math.Max((float)target.Width / img.Width,
@@ -367,6 +448,78 @@ namespace CKAN.GUI
             g.DrawImage(img, new Rectangle(target.X + ((target.Width - w) / 2),
                                            target.Y + ((target.Height - h) / 2),
                                            w, h));
+        }
+
+        /// <summary>
+        /// The download count as a chip on the artwork, bottom left. It used to
+        /// be a right-aligned run of text in the card body, where seven digits
+        /// ("2,642,732 downloads") crowded the author line and read as noise.
+        /// Overlaid on the artwork it becomes part of the poster, the way a
+        /// streaming service labels a title, and the body gets its width back.
+        /// </summary>
+        private void DrawDownloadsPill(Graphics g, int contentLeft)
+        {
+            if (Mod.DownloadCount is not int count || count <= 0)
+            {
+                return;
+            }
+
+            string text = string.Format(Properties.Resources.DiscoverDownloadsShort,
+                                        CompactCount(count));
+            var font = SoftTheme.PillFont;
+            var measured = TextRenderer.MeasureText(g, text, font,
+                                                    new Size(int.MaxValue, int.MaxValue),
+                                                    TextFormatFlags.NoPadding);
+            int width = Math.Min(measured.Width + SoftTheme.ScaleInt(16, Dpi),
+                                 CardRect.Width - (Pad * 2));
+            if (width <= 0)
+            {
+                return;
+            }
+
+            var rect = new Rectangle(contentLeft,
+                                     CoverRect.Bottom - PillHeight - SoftTheme.ScaleInt(8, Dpi),
+                                     width, PillHeight);
+
+            // Translucent rather than opaque, so the artwork still reads through
+            // it while the text stays legible on any image.
+            SoftTheme.FillRounded(g, rect, Color.FromArgb(150, 10, 14, 22), rect.Height / 2);
+            TextRenderer.DrawText(g, text, font, rect, Color.White,
+                                  TextFormatFlags.HorizontalCenter
+                                  | TextFormatFlags.VerticalCenter
+                                  | TextFormatFlags.EndEllipsis
+                                  | TextFormatFlags.NoPadding);
+        }
+
+        /// <summary>
+        /// Compact a download count to its magnitude: 842, 8.4K, 73.8K, 2.6M.
+        /// One decimal place, dropped when it carries no information.
+        /// </summary>
+        private static string CompactCount(int value)
+        {
+            double scaled;
+            string suffix;
+            if (value >= 1000000000)
+            {
+                scaled = value / 1000000000.0;
+                suffix = "B";
+            }
+            else if (value >= 1000000)
+            {
+                scaled = value / 1000000.0;
+                suffix = "M";
+            }
+            else if (value >= 1000)
+            {
+                scaled = value / 1000.0;
+                suffix = "K";
+            }
+            else
+            {
+                return value.ToString(CultureInfo.CurrentCulture);
+            }
+
+            return scaled.ToString("0.#", CultureInfo.CurrentCulture) + suffix;
         }
 
         private void DrawBadges(Graphics g, Point origin)
@@ -426,24 +579,38 @@ namespace CKAN.GUI
             }
             else if (Mod.IsInstalled && Status != ModCardStatus.QueuedRemove)
             {
-                yield return (Properties.Resources.ModCardBadgeInstalled, SoftTheme.SuccessSoft, SoftTheme.Success);
+                    yield return (Properties.Resources.ModCardBadgeInstalled, SoftTheme.Success, Color.White);
             }
         }
 
         private void DrawFooter(Graphics g, Rectangle card, int actionTop, int contentLeft)
         {
-            var pillFont = SoftTheme.PillFont;
+            var pillFont = SoftTheme.CardAuthorFont;
             var version = Mod.InstalledVersion ?? Mod.LatestVersion;
             if (version.Length > 0 && version != "-")
             {
-                var rect = new Rectangle(contentLeft, actionTop,
-                                         SoftTheme.ScaleInt(84, Dpi), ActionHeight);
-                SoftTheme.FillRounded(g, rect, SoftTheme.SurfaceSunken, SoftTheme.RadiusControl);
+                var rect = new Rectangle(contentLeft, actionTop - SoftTheme.ScaleInt(36, Dpi),
+                        SoftTheme.ScaleInt(density == DiscoverDensity.Compact ? 64 : 88, Dpi), SoftTheme.ScaleInt(22, Dpi));
+                SoftTheme.FillRounded(g, rect, SoftTheme.SurfaceSunken, SoftTheme.ScaleInt(5, Dpi));
                 TextRenderer.DrawText(g, version, pillFont, rect, SoftTheme.TextSecondary,
                                       TextFormatFlags.HorizontalCenter
                                       | TextFormatFlags.VerticalCenter
                                       | TextFormatFlags.EndEllipsis
                                       | TextFormatFlags.NoPadding);
+            }
+
+            int metaLeft = contentLeft + SoftTheme.ScaleInt(density == DiscoverDensity.Compact ? 70 : 94, Dpi);
+            var metaRect = new Rectangle(metaLeft, actionTop - SoftTheme.ScaleInt(36, Dpi),
+                Math.Max(1, card.Right - Pad - metaLeft), SoftTheme.ScaleInt(22, Dpi));
+            string size = CkanModule.FmtSize(Mod.Module.download_size);
+            TextRenderer.DrawText(g, size, SoftTheme.CardAuthorFont, metaRect, SoftTheme.TextMuted,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPadding);
+            if (Mod.DownloadCount is int downloads && downloads > 0)
+            {
+                TextRenderer.DrawText(g, CompactCount(downloads), SoftTheme.CardAuthorFont,
+                    new Rectangle(contentLeft, actionTop - SoftTheme.ScaleInt(14, Dpi),
+                                  card.Width - Pad * 2, SoftTheme.ScaleInt(12, Dpi)),
+                    SoftTheme.TextMuted, TextFormatFlags.Right | TextFormatFlags.NoPadding);
             }
 
             var action = ActionRect;
@@ -459,6 +626,14 @@ namespace CKAN.GUI
                                   | TextFormatFlags.VerticalCenter
                                   | TextFormatFlags.EndEllipsis
                                   | TextFormatFlags.NoPadding);
+            int arrowX = card.Right - Pad - SoftTheme.ScaleInt(12, Dpi);
+            int arrowY = action.Top + action.Height / 2;
+            using (var pen = new Pen(SoftTheme.TextMuted, 1.4f))
+            {
+                g.DrawLine(pen, arrowX - 6, arrowY, arrowX + 5, arrowY);
+                g.DrawLine(pen, arrowX + 1, arrowY - 4, arrowX + 5, arrowY);
+                g.DrawLine(pen, arrowX + 1, arrowY + 4, arrowX + 5, arrowY);
+            }
         }
 
         private static bool IsDarkAction(Color back)
@@ -470,7 +645,7 @@ namespace CKAN.GUI
             {
                 case ModCardStatus.Installed:
                     return (Properties.Resources.ModCardActionRemove,
-                            SoftTheme.SurfaceSunken, SoftTheme.Danger, true);
+                            SoftTheme.SurfaceSunken, SoftTheme.TextPrimary, true);
                 case ModCardStatus.QueuedInstall:
                     return (Properties.Resources.ModCardActionQueued,
                             SoftTheme.AccentSoft, SoftTheme.AccentDeep, true);
@@ -606,6 +781,18 @@ namespace CKAN.GUI
         {
             base.OnLostFocus(e);
             Invalidate();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                cover?.Dispose();
+                cover = null;
+                generatedCover?.Dispose();
+                generatedCover = null;
+            }
+            base.Dispose(disposing);
         }
 
         #endregion

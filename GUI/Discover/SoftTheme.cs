@@ -21,15 +21,48 @@ namespace CKAN.GUI
         /// The host is using a dark color scheme. Cached because reading the
         /// Windows registry on every paint would be silly.
         /// </summary>
-        public static bool IsDark { get; } = Util.DarkMode;
+        // The current concept file is authored in its dark scheme.  Keep that
+        // as the native shell's deterministic starting point; the T shortcut
+        // still lets the user switch to the light variant at any time.
+        public static bool IsDark { get; private set; } = true;
+
+        public static void SetDark(bool dark)
+        {
+            IsDark = dark;
+        }
+
+        // net481's Control.DeviceDpi can stay at 96 with system-DPI awareness.
+        // The drawing surface is authoritative for both text and layout.
+        public static readonly float LayoutDpi = ReadLayoutDpi();
+
+        private static float ReadLayoutDpi()
+        {
+            using (var graphics = Graphics.FromHwnd(IntPtr.Zero))
+            {
+                return graphics.DpiX > 0 ? graphics.DpiX : 96f;
+            }
+        }
+
+        public static int Px(int value) => ScaleInt(value, LayoutDpi);
 
         #region Palette
 
+        /// <summary>
+        /// The page/stage colour behind the rounded application surface. It is
+        /// intentionally distinct from <see cref="Backdrop"/>, which is the
+        /// app's content window colour.
+        /// </summary>
         public static Color Backdrop      => IsDark ? Color.FromArgb(17, 19, 24)    : Color.FromArgb(243, 245, 249);
         public static Color Surface       => IsDark ? Color.FromArgb(28, 31, 38)    : Color.FromArgb(255, 255, 255);
         public static Color SurfaceRaised => IsDark ? Color.FromArgb(37, 41, 50)    : Color.FromArgb(255, 255, 255);
         public static Color SurfaceSunken => IsDark ? Color.FromArgb(23, 26, 32)    : Color.FromArgb(232, 236, 242);
         public static Color SurfaceHover  => IsDark ? Color.FromArgb(45, 50, 61)    : Color.FromArgb(247, 249, 253);
+        // The concept uses translucent window chrome rather than a second
+        // opaque slab. These are the pre-composited equivalents used by the
+        // native painter when a WinForms child cannot backdrop-filter itself.
+        public static Color TitlebarSurface => Mix(Backdrop, Surface, 0.55f);
+        public static Color RailSurface     => Mix(Backdrop, Surface, 0.32f);
+        public static Color StatusSurface   => Mix(Backdrop, Surface, 0.62f);
         public static Color TextPrimary   => IsDark ? Color.FromArgb(237, 240, 246) : Color.FromArgb(26, 30, 38);
         public static Color TextSecondary => IsDark ? Color.FromArgb(152, 160, 175) : Color.FromArgb(107, 115, 130);
         public static Color TextMuted     => IsDark ? Color.FromArgb(112, 120, 134) : Color.FromArgb(150, 156, 168);
@@ -41,11 +74,14 @@ namespace CKAN.GUI
         public static Color AccentSoft    => IsDark ? Color.FromArgb(38, 51, 88)    : Color.FromArgb(228, 235, 253);
         public static Color OnAccent      => Color.White;
 
-        public static Color Success       => Color.FromArgb(72, 176, 128);
+        public static Color Success       => IsDark ? Color.FromArgb(72, 176, 128)
+                                                   : Color.FromArgb(47, 156, 107);
         public static Color SuccessSoft   => IsDark ? Color.FromArgb(28, 56, 45)    : Color.FromArgb(224, 244, 234);
-        public static Color Warning       => Color.FromArgb(228, 166, 72);
+        public static Color Warning       => IsDark ? Color.FromArgb(228, 166, 72)
+                                                   : Color.FromArgb(201, 135, 31);
         public static Color WarningSoft   => IsDark ? Color.FromArgb(60, 47, 25)    : Color.FromArgb(253, 243, 223);
-        public static Color Danger        => Color.FromArgb(224, 96, 96);
+        public static Color Danger        => IsDark ? Color.FromArgb(224, 96, 96)
+                                                   : Color.FromArgb(211, 75, 75);
         public static Color DangerSoft    => IsDark ? Color.FromArgb(63, 33, 33)    : Color.FromArgb(252, 232, 232);
 
         /// <summary>
@@ -58,8 +94,11 @@ namespace CKAN.GUI
 
         #region Geometry
 
-        public const int RadiusCard     = 14;
-        public const int RadiusControl  = 8;
+        // Keep the native geometry in lockstep with the current visual design:
+        // cards use the larger 18px radius while controls use the softer 11px
+        // radius shared by the search fields, pills, and action buttons.
+        public const int RadiusCard     = 18;
+        public const int RadiusControl  = 11;
         public const int RadiusPill     = 999;
 
         /// <summary>
@@ -215,6 +254,8 @@ namespace CKAN.GUI
         // App-lifetime fonts. Created once and reused for every paint so we do
         // not leak GDI handles on the hot path.
         public static readonly Font DisplayFont     = CreateFont(19f,   FontStyle.Bold);
+        public static readonly Font InspectorTitleFont = CreateFont(14f, FontStyle.Bold);
+        public static readonly Font InspectorByFont    = CreateFont(9.25f, FontStyle.Regular);
         public static readonly Font SectionFont     = CreateFont(12.5f, FontStyle.Bold);
         public static readonly Font TitleFont       = CreateFont(11f,   FontStyle.Bold);
         public static readonly Font SubtitleFont    = CreateFont(9.5f,  FontStyle.Regular);
@@ -226,6 +267,12 @@ namespace CKAN.GUI
         public static readonly Font CardBodyFont    = CreateFont(8f,    FontStyle.Regular);
         public static readonly Font PillFont        = CreateFont(7.5f,  FontStyle.Bold);
         public static readonly Font ActionFont      = CreateFont(8.5f,  FontStyle.Bold);
+
+        // Tab strip. One weight for resting and selected tabs alike: the tab
+        // strip's selected state is carried by colour and the accent underline,
+        // because a bold face would not fit the width the native control
+        // reserves from the label.
+        public static readonly Font TabFont         = CreateFont(9.5f,  FontStyle.Regular);
 
         #endregion
     }

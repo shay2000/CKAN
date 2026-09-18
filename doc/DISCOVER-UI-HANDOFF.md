@@ -6,21 +6,36 @@ pieces are shaped the way they are, and how to verify or extend the work.
 Everything here is additive. The classic table view, the change set, the install
 pipeline and the metadata layers in `Core/` are untouched.
 
+The current concept reference is kept in `Concept Art/index.html` as a design
+reference only. The shipped surface is `GUI/Main/ModernShell.cs`: a borderless,
+owner-drawn WinForms shell that renders the same stage, title bar, rail, shelves,
+queue, collections, settings and overlays without embedding HTML or a WebView.
+
 ## What changed
 
 | Area | Before | After |
 |------|--------|-------|
-| Browsing | A single dense `DataGridView` | A card-based "Discover" surface, shown by default, with the table one click away |
+| Browsing | A single dense `DataGridView` | A native card-based "Discover" surface, shown by default, with compact gallery, list and table densities |
 | Artwork | None | On-demand cover art from SpaceDock, GitHub README screenshots and GitHub social cards, with deterministic generated fallback |
 | Ranking | Column-click sorting in the grid | A "Rank by" control with five rankings, persisted between runs |
+| Filtering | Structured grid filters | Concept-art pills for All / Installed / Updates / New / Compatible plus presentation categories |
 | Change-set visibility | Checkbox in a row | Status badges and an action button on every card |
 | Version history | A "Versions" column | A dedicated **Changelog** tab in the detail pane, with optional GitHub release notes |
-| Window chrome | Classic raised WinForms chrome | Flat, hairline, soft surfaces for the menu bar, toolbar and status bar |
+| Window chrome | Classic raised WinForms chrome | Borderless native stage, title bar, rail and status bar with soft surfaces |
 | Status bar | Left-aligned text | Centred, calmer status line |
 
 ## New files
 
 All under `GUI/Discover/` unless noted.
+
+### `ModernShell.cs` (under `GUI/Main/`)
+
+The native application frame that replaces the legacy menu-bar/split-pane
+framing when the GUI starts. It owns only presentation state and delegates
+catalogue selection, changeset edits, refresh, settings and launch actions to
+the existing `Main` and `ManageMods` owners. Its command palette includes view
+navigation, density changes, queue/apply/discard actions, theme/notes and the
+first catalogue matches.
 
 ### `SoftTheme.cs`
 
@@ -58,13 +73,17 @@ and a `FlowLayoutPanel` of cards.
 
 The browsing surface. Structure:
 
-* **Header** - title, subtitle, soft search field, filter pills (All / My mods /
-  Updates / New), the `Rank by` combo, and a stats line
+* **Header** - title, subtitle, soft search field, filter pills (All / Installed /
+  Updates / New / Compatible), `Rank by`, category and density controls, a
+  native Play KSP action, and a stats line
   (`N mods available · N installed · N updates`).
 * **Shelves** - `Continue with your setup` (installed), `Updates available`,
   `New and noteworthy`, the ranked shelf (title follows the selected ranking) and
   `Browse everything`. Empty shelves are skipped; rows are capped at 30 cards, with
   "See all" handing the user back to the table view.
+* **Flat catalogue** - `List` and `Table` are owner-drawn WinForms rows backed by
+  the same `GUIMod` objects and change-set status resolver. `Table` adds a native
+  metadata header; neither mode creates an HTML control or WebView.
 * **Empty state** - shown when the search or filter matches nothing.
 
 Artwork loading is on demand: a 350 ms timer plus scroll/resize hooks find the cards
@@ -73,8 +92,10 @@ Decoded images are kept per mod for the session and **can be disposed** in
 `Dispose`; cards own their own clone.
 
 `DiscoverSortMode` (defined here) is `Name`, `Downloads`, `NewestRelease`,
-`SmallestDownload`, `Author`. Download counts come from the repository download
-statistics that `GUIMod.DownloadCount` already exposes.
+  `SmallestDownload`, `Author`. Download counts come from the repository download
+  statistics that `GUIMod.DownloadCount` already exposes. `DiscoverDensity` is
+  persisted in `GUIConfiguration.DiscoverDensity` as compact gallery (`0`), list
+  (`1`) or table (`2`).
 
 ### `ModArtGenerator.cs`
 
@@ -131,8 +152,8 @@ Applied to `MainMenu`, the `ManageMods` toolbar and `statusStrip1`.
 |------|--------|
 | `GUI/Controls/ManageMods.cs` | Owns the Discover view, the view switch, the toolbar restyle and the bridging methods `SelectModForDetails`, `ToggleModInstalled`, `ShowDiscoverView`, `RefreshDiscoverView`, `ApplyDiscoverSettings`. |
 | `GUI/Controls/ModInfo/ModInfo.cs` | Adds the Changelog tab in code (so the localized designer layout is untouched) and routes it from `LoadTab`. |
-| `GUI/Main/Main.cs` | `ApplySoftChrome()` restyles the menu bar and status bar and centres the status text. |
-| `GUI/Model/GUIConfiguration.cs` | Persists `DiscoverView` (bool, default `true`) and `DiscoverSort` (int). |
+| `GUI/Main/Main.cs` | Restyles the legacy controls for fallback use and installs the borderless native `ModernShell` as the visible application surface. |
+| `GUI/Model/GUIConfiguration.cs` | Persists `DiscoverView` (bool, default `true`), `DiscoverSort` (int), and `DiscoverDensity` (int). |
 | `GUI/Properties/Resources.resx` | All new user-visible strings. No display text is hard-coded in the new code. |
 
 ## Integration contract
@@ -169,8 +190,8 @@ _build\out\CKAN-GUI\Debug\bin\net481\CKAN-GUI.exe
 
 Manual checklist:
 
-1. The app opens in Discover with shelves, artwork and the segmented switch on
-   `Discover`.
+1. The app opens in Discover with shelves and artwork inside the borderless
+   native shell; the legacy menu bar and split-pane frame are not visible.
 2. Scroll a shelf with the wheel - it moves sideways until the end, then the page
    scrolls.
 3. Change `Rank by` to `Most downloaded` - shelf order and the ranked shelf title
@@ -179,8 +200,10 @@ Manual checklist:
    set in the table view matches.
 5. Select a card, open the **Changelog** tab, press "Fetch release notes" for a mod
    with a GitHub repository.
-6. Switch to `List` - the classic grid, filters and search are unchanged; switch back.
-7. Launch again - the view and ranking you left are restored.
+6. Switch through compact, list and table density - the native rows remain interactive and the classic grid is still one click away.
+7. Press `N` for the design-notes panel, `Ctrl K` for the native command palette,
+   and press the native Play KSP action.
+8. Launch again - the view, ranking and density you left are restored.
 
 ### Screenshot harness
 
@@ -228,8 +251,9 @@ Caveats learned the hard way:
 * **CurseForge artwork is not used.** `resources.curseforge` exists in metadata, but
   the CurseForge API requires a key, so those mods fall through to GitHub or
   generated art.
-* **Cover art is not shown in the table view.** Rows still use the original cell
-  text; adding an `Image` column is possible but would need a custom cell painter.
+* **Cover art is not shown in list/table density.** The compact gallery remains
+  the art-forward mode; flat rows use generated initials so they stay fast and
+  legible with large catalogues.
 * **Shelf order is fixed.** Shelves are declared in `RebuildRows`; a user-arrangeable
   order would need a config entry listing shelf keys.
 * **No filtering by game version or install size yet.** The filter pills are the

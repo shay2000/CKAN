@@ -78,8 +78,17 @@ namespace CKAN.GUI
         /// <see cref="DiscoverSortMode"/> value.
         /// </summary>
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate)]
+        [DefaultValue(1)]
+        public int DiscoverSort = 1;
+
+        /// <summary>
+        /// The native Discover presentation density: compact gallery, list, or
+        /// table. Stored as an integer to keep old configuration files forward
+        /// compatible without introducing a GUI-only enum dependency here.
+        /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate)]
         [DefaultValue(0)]
-        public int DiscoverSort = 0;
+        public int DiscoverDensity = 0;
 
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate)]
         [DefaultValue(true)]
@@ -88,6 +97,19 @@ namespace CKAN.GUI
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate)]
         [DefaultValue(false)]
         public bool SuppressRecommendations = false;
+
+        /// <summary>
+        /// Native Discover preferences that are not part of CKAN's installer
+        /// configuration. They live with the per-instance GUI settings so the
+        /// concept-art shell remains durable without inventing a second store.
+        /// </summary>
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate)]
+        [DefaultValue(true)]
+        public bool ModernVerifyDownloads = true;
+
+        [JsonProperty(DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate)]
+        [DefaultValue(true)]
+        public bool ModernCacheArtwork = true;
 
         [JsonProperty(DefaultValueHandling = DefaultValueHandling.IgnoreAndPopulate)]
         [DefaultValue(0)]

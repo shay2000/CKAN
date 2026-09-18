@@ -29,6 +29,35 @@ namespace CKAN.GUI
             coreCfg.PropertyChanged += Configuration_PropertyChanged;
         }
 
+        /// <summary>
+        /// Bring the contents tab's buttons onto the soft palette.
+        ///
+        /// The designer already made them flat, so what is left to do is the
+        /// outline: a flat button keeps whatever border colour it was born
+        /// with, and the default is a hard black. It is replaced with the
+        /// strong hairline rather than the faint one the sheet uses, because a
+        /// button with no bevel left has nothing but its outline to say that it
+        /// is a button at all.
+        ///
+        /// Styled here rather than from the walk in
+        /// <see cref="ModInfo.ApplySoftTheme"/> so the changelog tab's fetch
+        /// button, which carries an accent style of its own, cannot be caught
+        /// by the same rule.
+        /// </summary>
+        public void ApplySoftTheme()
+        {
+            foreach (var button in new[] { ContentsDownloadButton, ContentsOpenButton })
+            {
+                button.UseVisualStyleBackColor = false;
+                button.BackColor               = SoftTheme.Surface;
+                button.ForeColor               = SoftTheme.TextPrimary;
+                button.FlatAppearance.BorderSize         = 1;
+                button.FlatAppearance.BorderColor        = SoftTheme.BorderStrong;
+                button.FlatAppearance.MouseOverBackColor = SoftTheme.SurfaceHover;
+                button.FlatAppearance.MouseDownBackColor = SoftTheme.AccentSoft;
+            }
+        }
+
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
         public GUIMod? SelectedModule
         {

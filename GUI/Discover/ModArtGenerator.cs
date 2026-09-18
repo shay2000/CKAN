@@ -21,8 +21,8 @@ namespace CKAN.GUI
     #endif
     public static class ModArtGenerator
     {
-        private const int InitialsAlpha = 90;
-        private const int BandAlpha     = 130;
+        private const int InitialsAlpha = 41;
+        private const int BandAlpha     = 219;
 
         // Nothing sane is anywhere near this big; it just keeps absurd inputs from OOMing.
         private const int MaxDimension  = 8192;
@@ -39,12 +39,7 @@ namespace CKAN.GUI
         {
             uint hash = StableHash(identifier);
 
-            // Spread the hash bits so hue, saturation and value vary independently.
-            float hue = (hash % 360u) / 360f;
-            float sat = 0.45f + ((hash >> 9)  % 21u) / 100f;
-            float val = 0.55f + ((hash >> 17) % 21u) / 100f;
-
-            return FromHsv(hue, sat, val);
+            return FromHsl((hash % 360u) / 360f, 0.58f, 0.44f);
         }
 
         /// <summary>
@@ -58,10 +53,16 @@ namespace CKAN.GUI
                 return "?";
             }
 
-            string[] words = name.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+            string[] words = System.Text.RegularExpressions.Regex.Replace(name, @"[^A-Za-z0-9 ]", " ")
+                .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
             if (words.Length == 0)
             {
                 return "?";
+            }
+
+            if (words.Length == 1)
+            {
+                return words[0].Substring(0, Math.Min(2, words[0].Length)).ToUpperInvariant();
             }
 
             string initials = "";
@@ -92,9 +93,9 @@ namespace CKAN.GUI
             Bitmap bitmap = new Bitmap(w, h, PixelFormat.Format32bppArgb);
             try
             {
-                Color seed   = SeedColor(identifier);
-                Color top    = Mix(seed, Color.White, 0.42f);
-                Color bottom = Mix(seed, Color.Black, 0.45f);
+                float hue = StableHash(identifier) % 360u;
+                Color top = FromHsl(hue / 360f, 0.58f, 0.44f);
+                Color bottom = FromHsl(((hue + 44f) % 360f) / 360f, 0.52f, 0.22f);
 
                 using (Graphics g = Graphics.FromImage(bitmap))
                 {
@@ -104,14 +105,14 @@ namespace CKAN.GUI
                     g.PixelOffsetMode   = PixelOffsetMode.HighQuality;
 
                     using (LinearGradientBrush background = new LinearGradientBrush(
-                               new Rectangle(0, 0, w, h), top, bottom, LinearGradientMode.Vertical))
+                               new Rectangle(0, 0, w, h), top, bottom, 48f))
                     {
                         g.FillRectangle(background, 0, 0, w, h);
                     }
 
                     DrawStreak(g, w, h);
-                    DrawInitials(g, InitialsForName(name), w, h);
                     DrawBottomBand(g, w, h);
+                    DrawInitials(g, InitialsForName(name), w, h);
                 }
             }
             catch (Exception)
@@ -131,9 +132,9 @@ namespace CKAN.GUI
             try
             {
                 g.TranslateTransform(width / 2f, height / 2f);
-                g.RotateTransform(-28f);
+                g.RotateTransform(6f);
 
-                float streakWidth = Math.Max(8f, width * 0.18f);
+                float streakWidth = Math.Max(8f, width * 0.28f);
                 float span        = (width + height) * 1.2f;
                 if (span < 1f)
                 {
@@ -148,7 +149,7 @@ namespace CKAN.GUI
                     streak.InterpolationColors = new ColorBlend(3)
                     {
                         Colors    = new[] { Color.FromArgb(0,  Color.White),
-                                            Color.FromArgb(46, Color.White),
+                                            Color.FromArgb(56, Color.White),
                                             Color.FromArgb(0,  Color.White) },
                         Positions = new[] { 0f, 0.5f, 1f },
                     };
@@ -166,7 +167,7 @@ namespace CKAN.GUI
         /// </summary>
         private static void DrawInitials(Graphics g, string initials, int width, int height)
         {
-            float pixelSize = height * 0.38f;
+            float pixelSize = height * 0.43f;
             if (pixelSize < 1f)
             {
                 pixelSize = 1f;
@@ -176,11 +177,11 @@ namespace CKAN.GUI
             using (SolidBrush brush = new SolidBrush(Color.FromArgb(InitialsAlpha, 255, 255, 255)))
             using (StringFormat format = new StringFormat())
             {
-                format.Alignment     = StringAlignment.Center;
-                format.LineAlignment = StringAlignment.Center;
+                format.Alignment     = StringAlignment.Far;
+                format.LineAlignment = StringAlignment.Far;
                 format.Trimming      = StringTrimming.None;
                 format.FormatFlags   = StringFormatFlags.NoWrap;
-                g.DrawString(initials, font, brush, new RectangleF(0f, 0f, width, height), format);
+                g.DrawString(initials, font, brush, new RectangleF(0f, 0f, width - 7f, height + 2f), format);
             }
         }
 
@@ -190,11 +191,11 @@ namespace CKAN.GUI
         /// </summary>
         private static void DrawBottomBand(Graphics g, int width, int height)
         {
-            int bandHeight = Math.Max(1, (int)(height * 0.35f));
+            int bandHeight = Math.Max(1, (int)(height * 0.66f));
             Rectangle band = new Rectangle(0, height - bandHeight, width, bandHeight);
 
             using (LinearGradientBrush bandBrush = new LinearGradientBrush(
-                       band, Color.FromArgb(0, 0, 0, 0), Color.FromArgb(BandAlpha, 0, 0, 0),
+                       band, Color.FromArgb(0, 10, 14, 22), Color.FromArgb(BandAlpha, 10, 14, 22),
                        LinearGradientMode.Vertical))
             {
                 g.FillRectangle(bandBrush, band);
@@ -215,9 +216,7 @@ namespace CKAN.GUI
             {
                 foreach (char c in identifier)
                 {
-                    hash ^= (byte)(c & 0xFF);
-                    hash *= Prime;
-                    hash ^= (byte)((c >> 8) & 0xFF);
+                    hash ^= c;
                     hash *= Prime;
                 }
             }
@@ -237,6 +236,12 @@ namespace CKAN.GUI
         private static int Channel(int from, int to, float amount)
         {
             return (int)Math.Round(from + (to - from) * amount);
+        }
+
+        private static Color FromHsl(float hue, float saturation, float lightness)
+        {
+            float value = lightness + saturation * Math.Min(lightness, 1f - lightness);
+            return FromHsv(hue, value == 0 ? 0 : 2f * (1f - lightness / value), value);
         }
 
         private static Color FromHsv(float hue, float saturation, float value)

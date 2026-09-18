@@ -502,19 +502,168 @@ Are you sure?</value></data>
   <data name="DiscoverTitle" xml:space="preserve"><value>Discover</value></data>
   <data name="DiscoverSubtitle" xml:space="preserve"><value>Browse the catalogue, see what is new, and keep track of what you already run.</value></data>
   <data name="DiscoverSearchHint" xml:space="preserve"><value>Search mods, authors or descriptions</value></data>
+  <data name="DiscoverLibraryTitle" xml:space="preserve"><value>Library</value></data>
+  <data name="DiscoverUpdatesTitle" xml:space="preserve"><value>Updates</value></data>
+  <data name="DiscoverLibrarySearchHint" xml:space="preserve"><value>Search installed mods</value></data>
+  <data name="DiscoverReleased" xml:space="preserve"><value>released {0}</value></data>
+  <data name="DiscoverToday" xml:space="preserve"><value>today</value></data>
+  <data name="DiscoverYesterday" xml:space="preserve"><value>yesterday</value></data>
+  <data name="DiscoverDaysAgo" xml:space="preserve"><value>{0} days ago</value></data>
+  <data name="DiscoverWeeksAgo" xml:space="preserve"><value>{0} wk ago</value></data>
+  <data name="DiscoverLibraryStats" xml:space="preserve"><value>{0:N0} of {1:N0} · {2}</value></data>
+  <data name="DiscoverLibraryUpdatesAvailable" xml:space="preserve"><value>{0} updates available</value></data>
+  <data name="DiscoverUpdateAll" xml:space="preserve"><value>Update all</value></data>
+  <data name="DiscoverQueueAllUpdates" xml:space="preserve"><value>Queue all updates</value></data>
   <data name="DiscoverFilterAll" xml:space="preserve"><value>All</value></data>
-  <data name="DiscoverFilterInstalled" xml:space="preserve"><value>My mods</value></data>
+  <data name="DiscoverFilterInstalled" xml:space="preserve"><value>Installed</value></data>
   <data name="DiscoverFilterUpdates" xml:space="preserve"><value>Updates</value></data>
   <data name="DiscoverFilterNew" xml:space="preserve"><value>New</value></data>
+  <data name="DiscoverFilterCompatible" xml:space="preserve"><value>Compatible</value></data>
   <data name="DiscoverEmptyTitle" xml:space="preserve"><value>Nothing to show here</value></data>
   <data name="DiscoverEmptyMessage" xml:space="preserve"><value>Try a different search, or refresh the repository from the toolbar.</value></data>
-  <data name="DiscoverRowLibrary" xml:space="preserve"><value>Continue with your setup</value></data>
+  <data name="DiscoverRowLibrary" xml:space="preserve"><value>Installed</value></data>
+  <data name="DiscoverRowContinueSetup" xml:space="preserve"><value>Continue with your setup</value></data>
   <data name="DiscoverRowUpdates" xml:space="preserve"><value>Updates available</value></data>
   <data name="DiscoverRowNew" xml:space="preserve"><value>New and noteworthy</value></data>
+  <data name="DiscoverRowCompatible" xml:space="preserve"><value>Compatible with this instance</value></data>
   <data name="DiscoverRowPopular" xml:space="preserve"><value>Most downloaded</value></data>
   <data name="DiscoverRowAll" xml:space="preserve"><value>Browse everything</value></data>
   <data name="DiscoverStats" xml:space="preserve"><value>{0:N0} mods available · {1:N0} installed · {2:N0} updates</value></data>
   <data name="DiscoverSeeAll" xml:space="preserve"><value>See all</value></data>
+  <data name="DiscoverModsCount" xml:space="preserve"><value>{0:N0} mods</value></data>
+  <data name="DiscoverBackToShelves" xml:space="preserve"><value>‹ Back to shelves</value></data>
+  <data name="DiscoverPlayKsp" xml:space="preserve"><value>Play KSP</value></data>
+  <data name="DiscoverDesignNotes" xml:space="preserve"><value>Design notes</value></data>
+  <data name="DiscoverDesignNotesTooltip" xml:space="preserve"><value>Why this native surface is shaped this way</value></data>
+  <data name="DiscoverDensityCompact" xml:space="preserve"><value>Compact gallery</value></data>
+  <data name="DiscoverDensityList" xml:space="preserve"><value>List view</value></data>
+  <data name="DiscoverDensityTable" xml:space="preserve"><value>Table view</value></data>
+  <data name="DiscoverCategoryAll" xml:space="preserve"><value>All categories</value></data>
+  <data name="DiscoverCategoryTools" xml:space="preserve"><value>Tools</value></data>
+  <data name="DiscoverCategoryVisuals" xml:space="preserve"><value>Visuals</value></data>
+  <data name="DiscoverCategoryParts" xml:space="preserve"><value>Parts</value></data>
+  <data name="DiscoverCategoryGameplay" xml:space="preserve"><value>Gameplay</value></data>
+  <data name="DiscoverCategoryCore" xml:space="preserve"><value>Core</value></data>
+  <data name="DiscoverCategoryPlanets" xml:space="preserve"><value>Planets</value></data>
+  <data name="DiscoverCategoryPhysics" xml:space="preserve"><value>Physics</value></data>
+  <data name="DiscoverCategoryAudio" xml:space="preserve"><value>Audio</value></data>
+  <data name="DiscoverStatsMatching" xml:space="preserve"><value>{0:N0} mods available · {1:N0} installed · {2:N0} updates · {3:N0} matching</value></data>
+  <data name="DiscoverNotesText" xml:space="preserve"><value>One navigation spine. One searchable command surface. Every install action still flows through CKAN’s shared changeset.</value></data>
+  <data name="DiscoverTableMod" xml:space="preserve"><value>MOD</value></data>
+  <data name="DiscoverTableCategory" xml:space="preserve"><value>CATEGORY</value></data>
+  <data name="DiscoverTableSize" xml:space="preserve"><value>SIZE</value></data>
+  <data name="DiscoverTableVersion" xml:space="preserve"><value>VERSION</value></data>
+<data name="DiscoverTableStatus" xml:space="preserve"><value>STATUS</value></data>
+  <data name="DiscoverVersionChange" xml:space="preserve"><value>{0} → {1}</value></data>
+  <data name="ModernShellCatalogue" xml:space="preserve"><value>Catalogue</value></data>
+  <data name="ModernShellInstance" xml:space="preserve"><value>Instance</value></data>
+  <data name="ModernShellLibrary" xml:space="preserve"><value>Library</value></data>
+  <data name="ModernShellUpdates" xml:space="preserve"><value>Updates</value></data>
+  <data name="ModernShellQueue" xml:space="preserve"><value>Queue</value></data>
+  <data name="ModernShellCollections" xml:space="preserve"><value>Collections</value></data>
+  <data name="ModernShellSettings" xml:space="preserve"><value>Settings</value></data>
+  <data name="ModernShellModsInstalled" xml:space="preserve"><value>{0} mods installed</value></data>
+  <data name="ModernShellGameData" xml:space="preserve"><value>{0} of GameData</value></data>
+  <data name="ModernShellRegistryUpdated" xml:space="preserve"><value>Registry updated {0}</value></data>
+  <data name="ModernShellNoInstance" xml:space="preserve"><value>No game instance selected</value></data>
+  <data name="ModernShellToggleTheme" xml:space="preserve"><value>Toggle light and dark theme</value></data>
+  <data name="ModernShellThemeLightDark" xml:space="preserve"><value>Light / dark</value></data>
+  <data name="ModernShellThemeDarkLight" xml:space="preserve"><value>Dark / light</value></data>
+  <data name="ModernShellMinimize" xml:space="preserve"><value>Minimize</value></data>
+  <data name="ModernShellMaximize" xml:space="preserve"><value>Maximize</value></data>
+  <data name="ModernShellCommandHint" xml:space="preserve"><value>Search or run a command</value></data>
+  <data name="ModernShellStatus" xml:space="preserve"><value>{0} updates available · {1:N0} mods · {2}</value></data>
+  <data name="ModernShellNoPending" xml:space="preserve"><value>No pending changes</value></data>
+  <data name="ModernShellQueueTitle" xml:space="preserve"><value>Queue</value></data>
+  <data name="ModernShellQueueSubtitle" xml:space="preserve"><value>Review the changes waiting for CKAN to apply.</value></data>
+  <data name="ModernShellQueueStaged" xml:space="preserve"><value>Staged</value></data>
+  <data name="ModernShellQueueHistory" xml:space="preserve"><value>History</value></data>
+  <data name="ModernShellQueueNothingYet" xml:space="preserve"><value>Nothing yet.</value></data>
+  <data name="ModernShellNothingStaged" xml:space="preserve"><value>Nothing staged.</value></data>
+  <data name="ModernShellApplyChanges" xml:space="preserve"><value>Apply {0} change(s)</value></data>
+  <data name="ModernShellDiscard" xml:space="preserve"><value>Discard</value></data>
+  <data name="ModernShellCollectionsTitle" xml:space="preserve"><value>Collections</value></data>
+  <data name="ModernShellCollectionsSubtitle" xml:space="preserve"><value>Save themed groups of mods for a single-click return to a setup.</value></data>
+  <data name="ModernShellCollectionsEmpty" xml:space="preserve"><value>Your collections will appear here as you build them.</value></data>
+  <data name="ModernShellSettingsTitle" xml:space="preserve"><value>Settings</value></data>
+  <data name="ModernShellSettingsSubtitle" xml:space="preserve"><value>Manage CKAN, repositories, game instances and launch commands.</value></data>
+  <data name="ModernShellSettingsBody" xml:space="preserve"><value>These controls remain backed by CKAN's existing settings and registry services.</value></data>
+  <data name="ModernShellOpenSettings" xml:space="preserve"><value>Open CKAN settings</value></data>
+  <data name="ModernShellRefreshCatalogue" xml:space="preserve"><value>Refresh catalogue</value></data>
+  <data name="ModernShellPlay" xml:space="preserve"><value>Play KSP</value></data>
+  <data name="ModernShellInspector" xml:space="preserve"><value>Mod details</value></data>
+  <data name="ModernShellInspectorOverview" xml:space="preserve"><value>Overview</value></data>
+  <data name="ModernShellInspectorRelationships" xml:space="preserve"><value>Relationships</value></data>
+  <data name="ModernShellInspectorFiles" xml:space="preserve"><value>Files</value></data>
+  <data name="ModernShellInspectorDetails" xml:space="preserve"><value>Details</value></data>
+  <data name="ModernShellInspectorIdentifier" xml:space="preserve"><value>Identifier</value></data>
+  <data name="ModernShellInspectorVersion" xml:space="preserve"><value>Version</value></data>
+  <data name="ModernShellInspectorReleased" xml:space="preserve"><value>Released</value></data>
+  <data name="ModernShellInspectorDownloadSize" xml:space="preserve"><value>Download size</value></data>
+  <data name="ModernShellInspectorOnDisk" xml:space="preserve"><value>On disk</value></data>
+  <data name="ModernShellInspectorHomepage" xml:space="preserve"><value>Homepage</value></data>
+  <data name="ModernShellInspectorRequires" xml:space="preserve"><value>Requires</value></data>
+  <data name="ModernShellInspectorRecommends" xml:space="preserve"><value>Recommends</value></data>
+  <data name="ModernShellInspectorConflicts" xml:space="preserve"><value>Conflicts</value></data>
+  <data name="ModernShellInspectorNoRelationships" xml:space="preserve"><value>No relationships.</value></data>
+  <data name="ModernShellInspectorContents" xml:space="preserve"><value>Contents</value></data>
+  <data name="ModernShellInspectorPackageCached" xml:space="preserve"><value>The package is cached and ready for CKAN's contents preview.</value></data>
+  <data name="ModernShellInspectorPackageNotCached" xml:space="preserve"><value>Download the package to preview its installed files.</value></data>
+  <data name="ModernShellClose" xml:space="preserve"><value>Close</value></data>
+  <data name="ModernShellInstall" xml:space="preserve"><value>Install</value></data>
+  <data name="ModernShellRemove" xml:space="preserve"><value>Remove</value></data>
+  <data name="ModernShellUpdate" xml:space="preserve"><value>Update</value></data>
+  <data name="ModernShellInQueue" xml:space="preserve"><value>In queue</value></data>
+  <data name="ModernShellNoDescription" xml:space="preserve"><value>No description supplied.</value></data>
+  <data name="ModernShellCommandDiscover" xml:space="preserve"><value>Go to Discover</value></data>
+  <data name="ModernShellCommandLibrary" xml:space="preserve"><value>Open Library</value></data>
+  <data name="ModernShellCommandUpdates" xml:space="preserve"><value>Show Updates</value></data>
+  <data name="ModernShellCommandQueue" xml:space="preserve"><value>Open Queue</value></data>
+  <data name="ModernShellCommandNotes" xml:space="preserve"><value>Toggle design notes</value></data>
+  <data name="ModernShellCommandSettings" xml:space="preserve"><value>Open Settings</value></data>
+  <data name="ModernShellCommandRefresh" xml:space="preserve"><value>Refresh catalogue</value></data>
+  <data name="ModernShellCommandPlay" xml:space="preserve"><value>Play KSP</value></data>
+  <data name="ModernShellCollectionStockCareer" xml:space="preserve"><value>Stock+ Career</value></data>
+  <data name="ModernShellCollectionJnsq" xml:space="preserve"><value>JNSQ Exploration</value></data>
+  <data name="ModernShellCollectionCinematic" xml:space="preserve"><value>Cinematic</value></data>
+  <data name="ModernShellCollectionPhysics" xml:space="preserve"><value>Stock Physics Lab</value></data>
+  <data name="ModernShellCollectionStockCareerMeta" xml:space="preserve"><value>31 mods · 4.2 GB</value></data>
+  <data name="ModernShellCollectionJnsqMeta" xml:space="preserve"><value>48 mods · 9.8 GB</value></data>
+  <data name="ModernShellCollectionCinematicMeta" xml:space="preserve"><value>22 mods · 12.1 GB</value></data>
+  <data name="ModernShellCollectionPhysicsMeta" xml:space="preserve"><value>18 mods · 1.6 GB</value></data>
+  <data name="ModernShellMakeSetup" xml:space="preserve"><value>Make this my setup</value></data>
+  <data name="ModernShellSetupStaged" xml:space="preserve"><value>Setup staged</value></data>
+  <data name="ModernShellSettingsInstanceGroup" xml:space="preserve"><value>Instance</value></data>
+  <data name="ModernShellSettingsBehaviourGroup" xml:space="preserve"><value>Behaviour</value></data>
+  <data name="ModernShellSettingsStorageGroup" xml:space="preserve"><value>Storage</value></data>
+  <data name="ModernShellSettingsGameData" xml:space="preserve"><value>GameData</value></data>
+  <data name="ModernShellSettingsMods" xml:space="preserve"><value>{0} mods</value></data>
+  <data name="ModernShellSettingsGameVersion" xml:space="preserve"><value>Game version</value></data>
+  <data name="ModernShellSettingsInstallPath" xml:space="preserve"><value>Install path</value></data>
+  <data name="ModernShellSettingsRepository" xml:space="preserve"><value>Repository</value></data>
+  <data name="ModernShellSettingsChange" xml:space="preserve"><value>Change</value></data>
+  <data name="ModernShellSettingsRefresh" xml:space="preserve"><value>Refresh</value></data>
+  <data name="ModernShellSettingsCheckUpdates" xml:space="preserve"><value>Check for updates on launch</value></data>
+  <data name="ModernShellSettingsOffWhileDeveloping" xml:space="preserve"><value>Off while developing a fork</value></data>
+  <data name="ModernShellSettingsAutoApply" xml:space="preserve"><value>Auto-apply recommendations</value></data>
+  <data name="ModernShellSettingsQueueWithMod" xml:space="preserve"><value>Queue them with the mod</value></data>
+  <data name="ModernShellSettingsDevBuilds" xml:space="preserve"><value>Use development builds</value></data>
+  <data name="ModernShellSettingsPrereleases" xml:space="preserve"><value>Allow pre-releases</value></data>
+  <data name="ModernShellSettingsVerify" xml:space="preserve"><value>Verify downloads</value></data>
+  <data name="ModernShellSettingsSlower" xml:space="preserve"><value>Slower, reproducible</value></data>
+  <data name="ModernShellSettingsArtwork" xml:space="preserve"><value>Cache artwork on disk</value></data>
+  <data name="ModernShellSettingsArtworkDetail" xml:space="preserve"><value>Generated covers are kept locally</value></data>
+  <data name="ModernShellSettingsDownloadCache" xml:space="preserve"><value>Download cache</value></data>
+  <data name="ModernShellSettingsArtworkCache" xml:space="preserve"><value>Artwork cache</value></data>
+  <data name="ModernShellSettingsClear" xml:space="preserve"><value>Clear</value></data>
+  <data name="ModernShellSettingsRegistry" xml:space="preserve"><value>Registry</value></data>
+  <data name="ModernShellSettingsRebuild" xml:space="preserve"><value>Rebuild</value></data>
+  <data name="ModernShellSettingsUpdated" xml:space="preserve"><value>Updated {0} · {1:N0} mods</value></data>
+  <data name="ModernShellSettingsNoInstance" xml:space="preserve"><value>Select an instance to edit its settings.</value></data>
+  <data name="ModernShellCollectionActionMessage" xml:space="preserve"><value>{0} staged through CKAN's normal changeset.</value></data>
+  <data name="ModernShellApplyingChanges" xml:space="preserve"><value>Applying changes</value></data>
+  <data name="ModernShellApplyingChangesBody" xml:space="preserve"><value>CKAN is resolving, downloading and installing the selected mods.</value></data>
+  <data name="ModernShellCancel" xml:space="preserve"><value>Cancel</value></data>
   <data name="DiscoverSortLabel" xml:space="preserve"><value>Rank by</value></data>
   <data name="DiscoverSortName" xml:space="preserve"><value>Name (A to Z)</value></data>
   <data name="DiscoverSortDownloads" xml:space="preserve"><value>Most downloaded</value></data>
@@ -527,6 +676,7 @@ Are you sure?</value></data>
   <data name="DiscoverRowRankedSmallest" xml:space="preserve"><value>Lightest downloads</value></data>
   <data name="DiscoverRowRankedAuthor" xml:space="preserve"><value>By author</value></data>
   <data name="DiscoverDownloads" xml:space="preserve"><value>{0:N0} downloads</value></data>
+  <data name="DiscoverDownloadsShort" xml:space="preserve"><value>{0} downloads</value></data>
   <data name="ModCardActionInstall" xml:space="preserve"><value>Install</value></data>
   <data name="ModCardActionRemove" xml:space="preserve"><value>Remove</value></data>
   <data name="ModCardActionQueued" xml:space="preserve"><value>In queue</value></data>
@@ -554,4 +704,7 @@ Are you sure?</value></data>
   <data name="ChangelogPillLatest" xml:space="preserve"><value>Latest</value></data>
   <data name="ChangelogPillQueued" xml:space="preserve"><value>Queued</value></data>
   <data name="ChangelogNoNotes" xml:space="preserve"><value>No release notes available for this version.</value></data>
+  <data name="ModernLoadingTitle" xml:space="preserve"><value>Preparing your mission</value></data>
+  <data name="ModernLoadingSubtitle" xml:space="preserve"><value>Loading your catalogue and checking your installed mods.</value></data>
+  <data name="ModernLoadingDetail" xml:space="preserve"><value>Connecting your library to CKAN</value></data>
 </root>

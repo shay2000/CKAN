@@ -37,7 +37,13 @@ namespace CKAN.GUI
         {
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint,
                      true);
-            BackColor = SoftTheme.Backdrop;
+            // One continuous sheet, the same as every other tab in the pane.
+            // This used to be a backdrop-coloured well with white cards in it,
+            // which read as a panel belonging to a different surface and left a
+            // visible seam where it met the white tab strip. The cards carry a
+            // hairline outline of their own, so they stay separated on a white
+            // page without needing the fill to do the work.
+            BackColor = SoftTheme.Surface;
 
             heading = new Label
             {
@@ -61,7 +67,7 @@ namespace CKAN.GUI
                 FlatStyle = FlatStyle.Flat,
                 Font      = SoftTheme.ActionFont,
                 ForeColor = SoftTheme.Accent,
-                BackColor = SoftTheme.Backdrop,
+                BackColor = SoftTheme.Surface,
                 AutoSize  = false,
                 Height    = 26,
                 Cursor    = Cursors.Hand,
@@ -101,7 +107,7 @@ namespace CKAN.GUI
                 FlowDirection = FlowDirection.TopDown,
                 WrapContents  = false,
                 AutoScroll    = true,
-                BackColor     = SoftTheme.Backdrop,
+                BackColor     = SoftTheme.Surface,
                 Padding       = new Padding(0, 4, 0, 8),
                 Margin        = new Padding(0),
             };
@@ -115,7 +121,7 @@ namespace CKAN.GUI
             {
                 Dock      = DockStyle.Top,
                 Height    = 58,
-                BackColor = SoftTheme.Backdrop,
+                BackColor = SoftTheme.Surface,
             };
             header.Controls.Add(heading);
             header.Controls.Add(subheading);
@@ -138,6 +144,25 @@ namespace CKAN.GUI
         public void SetRegistryProvider(Func<IRegistryQuerier?> provider)
         {
             registryProvider = provider;
+        }
+
+        /// <summary>
+        /// Repaint the changelog when the native shell switches between the
+        /// concept's dark and light palettes.  The entry views paint directly
+        /// from SoftTheme, so invalidating the tree is enough once the host
+        /// controls have their new fills and foregrounds.
+        /// </summary>
+        public void RefreshTheme()
+        {
+            BackColor = SoftTheme.Surface;
+            heading.ForeColor = SoftTheme.TextPrimary;
+            subheading.ForeColor = SoftTheme.TextSecondary;
+            fetchButton.BackColor = SoftTheme.Surface;
+            fetchButton.ForeColor = SoftTheme.Accent;
+            sourceNote.ForeColor = SoftTheme.TextMuted;
+            listPanel.BackColor = SoftTheme.Surface;
+            emptyLabel.ForeColor = SoftTheme.TextSecondary;
+            Invalidate(true);
         }
 
         [System.ComponentModel.DesignerSerializationVisibility(
@@ -311,7 +336,7 @@ namespace CKAN.GUI
                          | ControlStyles.AllPaintingInWmPaint
                          | ControlStyles.UserPaint
                          | ControlStyles.ResizeRedraw, true);
-                BackColor = SoftTheme.Backdrop;
+                BackColor = SoftTheme.Surface;
                 Margin    = new Padding(0, 3, 0, 3);
                 Cursor    = entry.Url != null ? Cursors.Hand : Cursors.Default;
                 Height    = 104;
@@ -328,7 +353,10 @@ namespace CKAN.GUI
             {
                 var g = e.Graphics;
                 g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-                g.Clear(SoftTheme.Backdrop);
+                // The card's own background, so the gap between two cards is
+                // the page rather than a second colour. The outline drawn below
+                // is what separates them.
+                g.Clear(SoftTheme.Surface);
 
                 var bounds = new Rectangle(0, 0, Width - 1, Height - 1);
                 SoftTheme.FillRounded(g, bounds, SoftTheme.Surface, SoftTheme.RadiusControl);

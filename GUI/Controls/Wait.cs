@@ -49,6 +49,21 @@ namespace CKAN.GUI
 
         public bool Busy => bgWorker.IsBusy;
 
+        /// <summary>
+        /// Read-only state for the native shell. The legacy wait page remains
+        /// the owner of the worker, while the shell can mirror its progress
+        /// without displaying that page's framing.
+        /// </summary>
+        public int CurrentProgress => DialogProgressBar.Value;
+        public bool CurrentProgressIndeterminate
+            => DialogProgressBar.Style == ProgressBarStyle.Marquee;
+        public string CurrentProgressText => DialogProgressBar.Text;
+
+        public void CancelCurrentAction()
+        {
+            CancelCurrentActionButton.PerformClick();
+        }
+
         #pragma warning disable IDE0027
 
         [DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]

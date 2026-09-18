@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
 #if NET5_0_OR_GREATER
@@ -21,6 +22,7 @@ namespace CKAN.GUI
         private readonly Changelog         changelogTab      = new Changelog();
         private readonly ModChangelogService changelogService = new ModChangelogService();
         private TabPage?                   changelogTabPage;
+        private PaneReveal?                reveal;
 
         public ModInfo()
         {
@@ -33,6 +35,182 @@ namespace CKAN.GUI
             tagsLabelsLinkList.ShowHideTag += t => ShowHideTag?.Invoke(t);
             tagsLabelsLinkList.AddRemoveModuleLabel += l => AddRemoveModuleLabel?.Invoke(l);
             AddChangelogTab();
+        }
+
+        /// <summary>
+        /// Bring the detail pane onto the same palette as the Discover surface.
+        ///
+        /// The pane is one continuous sheet sitting on the backdrop, the way a
+        /// content column sits beside a sidebar: no band of chrome between the
+        /// header and the page, and a single hairline under the tab strip. That
+        /// matters more than any individual colour here - the pane used to
+        /// alternate white / grey / white down its height, which is what made
+        /// it read as three unrelated strips stacked together.
+        ///
+        /// Only colours and the name's alignment are touched. The designer's
+        /// fonts are left alone because <c>ScaleFonts</c> has already applied
+        /// the user's text scale factor to them, and overriding them here would
+        /// quietly ignore that setting.
+        /// </summary>
+        public void ApplySoftTheme()
+        {
+            BackColor = SoftTheme.Backdrop;
+            ApplyGutter();
+
+            ModInfoTable.BackColor = SoftTheme.Surface;
+
+            // The designer centres the name, which reads as a dialog caption
+            // rather than as a heading. Every other heading in the app is
+            // left-aligned, and a left-aligned title is what lets the tags and
+            // the abstract line up beneath it.
+            MetadataModuleNameTextBox.TextAlign = HorizontalAlignment.Left;
+            MetadataModuleNameTextBox.BackColor = SoftTheme.Surface;
+            MetadataModuleNameTextBox.ForeColor = SoftTheme.TextPrimary;
+
+            // The name box is a multiline TextBox docked into an auto-sized
+            // row, so the row inherits the designer's fixed height for it -
+            // which at 150% leaves a heading-sized hole between the title and
+            // the tags below it. Size the row to the text instead, so the
+            // title sits as a heading rather than floating in space.
+            ModInfoTable.RowStyles[0].SizeType = SizeType.Absolute;
+            ModInfoTable.RowStyles[0].Height =
+                (int)Math.Ceiling(MetadataModuleNameTextBox.Font.GetHeight())
+                + SoftTheme.ScaleInt(4, DeviceDpi);
+
+            // A little air between the abstract and the tab strip.
+            ModInfoTabControl.Margin = new Padding(0, SoftTheme.ScaleInt(6, DeviceDpi), 0, 0);
+
+            // Set explicitly rather than left transparent: a TextBox renders
+            // its own background through the native edit control, and relying
+            // on transparency here is what produced the white band this is
+            // replacing.
+            MetadataModuleAbstractLabel.BackColor = SoftTheme.Surface;
+            MetadataModuleAbstractLabel.ForeColor = SoftTheme.TextSecondary;
+
+            MetadataModuleDescriptionTextBox.BackColor = SoftTheme.Surface;
+            MetadataModuleDescriptionTextBox.ForeColor = SoftTheme.TextSecondary;
+
+            tagsLabelsLinkList.BackColor = SoftTheme.Surface;
+
+            foreach (TabPage page in ModInfoTabControl.TabPages)
+            {
+                // The visual-style background would otherwise win over BackColor.
+                page.UseVisualStyleBackColor = false;
+                page.BackColor               = SoftTheme.Surface;
+                ApplySoftSurface(page);
+            }
+
+            // The strip takes the sheet colour too, so the header is one
+            // surface rather than a band of chrome above a white page.
+            ModInfoTabControl.StripColor = SoftTheme.Surface;
+            ModInfoTabControl.BackColor  = SoftTheme.Surface;
+            ModInfoTabControl.RefreshTabMetrics();
+
+            Metadata.ApplySoftTheme();
+
+            // After the walker rather than before: the walker only knows
+            // the generic rules, and the tabs that own a colour or a control
+            // of their own - the versions table, whose row colours come from
+            // its legend, and the contents buttons - have to get the last
+            // word.
+            Versions.ApplySoftTheme();
+            Contents.ApplySoftTheme();
+
+            if (reveal == null)
+            {
+                reveal = new PaneReveal(this, ModInfoTable);
+                Disposed += (sender, e) => reveal?.Dispose();
+            }
+        }
+
+        /// <summary>
+        /// The backdrop gutter around the sheet, in 96 DPI design units.
+        /// </summary>
+        private const int DesignGutter = 14;
+
+        /// <summary>
+        /// Bring the tab contents onto the sheet: the sheet colour instead of
+        /// the system window colour, and no hard grey frame around the lists
+        /// and trees.
+        ///
+        /// Walked from the pages rather than done with a method per tab, so a
+        /// tab added later is covered without anyone having to remember to
+        /// theme it.
+        ///
+        /// Buttons are deliberately not covered here. There is no property that
+        /// says "this button has already been given a look of its own", and the
+        /// changelog tab's fetch button is one of those - so a rule general
+        /// enough to catch the contents buttons would repaint it. The tabs that
+        /// own a button style it themselves instead.
+        /// </summary>
+        private static void ApplySoftSurface(Control parent)
+        {
+            foreach (Control child in parent.Controls)
+            {
+                switch (child)
+                {
+                    case ListView list:
+                        list.BorderStyle = BorderStyle.None;
+                        list.BackColor   = SoftTheme.Surface;
+                        list.ForeColor   = SoftTheme.TextPrimary;
+                        break;
+
+                    case TreeView tree:
+                        tree.BorderStyle = BorderStyle.None;
+                        tree.BackColor   = SoftTheme.Surface;
+                        tree.ForeColor   = SoftTheme.TextPrimary;
+                        // No connector lines. The dotted ones the tree draws by
+                        // default come out near-black, and they cannot be
+                        // recoloured: TreeView.LineColor is ignored for as long
+                        // as visual styles are on for the control. Dropping them
+                        // altogether is also the more modern reading of a tree -
+                        // the expander and the indent carry the hierarchy on
+                        // their own.
+                        tree.ShowLines   = false;
+                        break;
+
+                    case Label label when label.BackColor == SystemColors.Control:
+                        // The designer captured the old dialog colour, which
+                        // shows as grey blocks on a white sheet.
+                        label.BackColor = Color.Transparent;
+                        break;
+                }
+
+                if (child.HasChildren)
+                {
+                    ApplySoftSurface(child);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Inset the sheet from the pane's edges.
+        ///
+        /// This is also what makes the rounded corners possible: the docked
+        /// table is inset by the gutter, so its own square corners land well
+        /// inside the card and are invisible against it, while the card's
+        /// corners stay clear of it and show the backdrop through.
+        /// </summary>
+        private void ApplyGutter()
+        {
+            int gutter = SoftTheme.ScaleInt(DesignGutter, DeviceDpi);
+            Padding = new Padding(gutter, gutter, gutter, gutter);
+        }
+
+        protected override void OnDpiChangedAfterParent(EventArgs e)
+        {
+            base.OnDpiChangedAfterParent(e);
+            ApplyGutter();
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            // Painted before base.OnPaint, because that is what raises the
+            // Paint event the reveal draws its snapshot into - the sheet has to
+            // be underneath it.
+            SoftTheme.FillRounded(e.Graphics, ClientRectangle, SoftTheme.Surface,
+                                  SoftTheme.ScaleInt(SoftTheme.RadiusCard, DeviceDpi));
+            base.OnPaint(e);
         }
 
         /// <summary>
@@ -84,6 +262,10 @@ namespace CKAN.GUI
                 {
                     selectedModule = value;
                     LoadTab(value);
+                    // Only when a different mod is picked: switching tabs
+                    // inside the pane should not re-run the entrance, and
+                    // neither should a refresh that re-selects the same mod.
+                    reveal?.Play();
                 }
             }
             get => selectedModule;

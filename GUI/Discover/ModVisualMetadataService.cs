@@ -6,6 +6,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -67,9 +68,18 @@ namespace CKAN.GUI
         private const int    TimeoutMilliseconds = 10000;
         private const int    MaxDownloadBytes    = 16 * 1024 * 1024;
         private const int    MaxIdentifierLength = 96;
+        private const int    MaxRedirects        = 5;
         private const string SourceSpaceDock     = "SpaceDock";
         private const string SourceGitHub        = "GitHub";
         private const string SourceGitHubReadme  = "GitHub README";
+
+        /// <summary>
+        /// Bumped whenever a resolution bug is fixed. The info cache stores the
+        /// already-resolved banner URL, so without a version marker a fix to the
+        /// resolver would never reach anyone who had already browsed the
+        /// catalogue - they would keep being served the old, wrong URL from disk.
+        /// </summary>
+        private const int CacheFormatVersion = 2;
 
         /// <summary>
         /// Reading READMEs is cheap and hits a CDN, but there is no point in
@@ -131,7 +141,8 @@ namespace CKAN.GUI
             {
                 return cachedInfo;
             }
-            if (FileExistsSafe(nonePath))
+            if (FileExistsSafe(nonePath)
+                && DateTime.UtcNow - File.GetLastWriteTimeUtc(nonePath) < TimeSpan.FromHours(24))
             {
                 // We already looked and found nothing; don't hit the network again.
                 return null;
@@ -185,17 +196,30 @@ namespace CKAN.GUI
 
             try
             {
-                string safeKey   = SanitizeIdentifier(mod.identifier);
-                string coverPath = CachePath(safeKey + ".cover.bin");
+                string safeKey = SanitizeIdentifier(mod.identifier);
+
+                // Resolve the source before touching the image cache. The cover
+                // file is keyed by where the artwork came from rather than by
+                // the mod alone: keying it by identifier meant that fixing the
+                // resolver, or a mod moving to a new SpaceDock page, never
+                // reached anyone who had already browsed the catalogue, because
+                // the stale image was always found first.
+                ModVisualInfo? info = await GetInfoAsync(mod, ct).ConfigureAwait(false);
+                string? banner = info?.BannerUrl;
+
+                string coverPath = CachePath(safeKey + "." + CoverKey(banner) + ".cover.bin");
+                string legacyPath = CachePath(safeKey + ".cover.bin");
 
                 byte[]? bytes = ReadBytesOrNull(coverPath);
                 if (bytes == null)
                 {
-                    ModVisualInfo? info = await GetInfoAsync(mod, ct).ConfigureAwait(false);
-                    string? banner = info?.BannerUrl;
+                    // Re-check the destination even though it was validated when the
+                    // info was resolved: it comes back off a disk cache, so it is not
+                    // trusted input here.
                     if (banner != null
                         && Uri.TryCreate(banner, UriKind.Absolute, out Uri? bannerUri)
-                        && bannerUri != null)
+                        && bannerUri != null
+                        && IsSafeRemote(bannerUri))
                     {
                         // Copy to a non-nullable local so the off-thread lambda is unambiguous.
                         Uri downloadUrl = bannerUri;
@@ -203,6 +227,9 @@ namespace CKAN.GUI
                         if (bytes != null && bytes.Length > 0)
                         {
                             WriteBytesAtomic(coverPath, bytes);
+                            // Retire the pre-versioning file so it does not sit on
+                            // disk for ever now that nothing reads it.
+                            TryDelete(legacyPath);
                         }
                     }
                 }
@@ -294,7 +321,7 @@ namespace CKAN.GUI
                     return null;
                 }
 
-                // SpaceDock's "background" is a site relative path.
+                // SpaceDock's "background" is an absolute URL; see SpaceDockBannerUrl.
                 string? banner = SpaceDockBannerUrl(JsonString(payload, "background"));
                 if (banner == null)
                 {
@@ -402,15 +429,9 @@ namespace CKAN.GUI
 
         private static string? FirstImageUrl(string markdown, string baseUrl)
         {
-            foreach (Match match in MarkdownImagePattern.Matches(markdown))
-            {
-                string? url = NormalizeImageUrl(match.Groups["url"].Value, baseUrl);
-                if (url != null)
-                {
-                    return url;
-                }
-            }
-            foreach (Match match in HtmlImagePattern.Matches(markdown))
+            foreach (Match match in MarkdownImagePattern.Matches(markdown).Cast<Match>()
+                .Concat(HtmlImagePattern.Matches(markdown).Cast<Match>())
+                .OrderBy(match => match.Index))
             {
                 string? url = NormalizeImageUrl(match.Groups["url"].Value, baseUrl);
                 if (url != null)
@@ -466,8 +487,10 @@ namespace CKAN.GUI
                 return null;
             }
 
-            if (candidate.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
-                || candidate.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            // Artwork is fetched automatically the moment a card scrolls into view, so
+            // only HTTPS is ever accepted. A mod's README must not be able to aim CKAN
+            // at an arbitrary plaintext endpoint.
+            if (candidate.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
                 return candidate;
             }
@@ -475,9 +498,11 @@ namespace CKAN.GUI
             {
                 return "https:" + candidate;
             }
-            if (baseUrl.Length > 0
+            if (!candidate.StartsWith("http://", StringComparison.OrdinalIgnoreCase)
+                && baseUrl.Length > 0
                 && Uri.TryCreate(new Uri(baseUrl), candidate, out Uri? resolved)
-                && resolved != null)
+                && resolved != null
+                && resolved.Scheme == Uri.UriSchemeHttps)
             {
                 return resolved.AbsoluteUri;
             }
@@ -487,6 +512,82 @@ namespace CKAN.GUI
         private static bool IsHttp(Uri? url)
             => url != null && url.IsAbsoluteUri
                && (url.Scheme == Uri.UriSchemeHttp || url.Scheme == Uri.UriSchemeHttps);
+
+        /// <summary>
+        /// True when a URL is safe to fetch automatically. Artwork destinations come
+        /// from community metadata (a mod's README), so they must be HTTPS and must not
+        /// point at loopback, private, link-local or otherwise non-public addresses -
+        /// otherwise a mod author could make CKAN probe services on the user's own
+        /// network. Applies to every redirect hop as well as the initial request.
+        /// </summary>
+        private static bool IsSafeRemote(Uri? url)
+            => url != null
+               && url.IsAbsoluteUri
+               && url.Scheme == Uri.UriSchemeHttps
+               && IsPublicHost(url.Host);
+
+        private static bool IsPublicHost(string host)
+        {
+            if (string.IsNullOrEmpty(host)
+                || string.Equals(host, "localhost", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            try
+            {
+                IPAddress[] addresses = Dns.GetHostAddresses(host);
+                if (addresses.Length == 0)
+                {
+                    return false;
+                }
+                // A hostname can resolve to a private address, so check every answer
+                // rather than trusting the name.
+                return addresses.All(a => !IsPrivateAddress(a));
+            }
+            catch (Exception exc)
+            {
+                log.Debug($"Could not resolve artwork host {host}", exc);
+                return false;
+            }
+        }
+
+        private static bool IsPrivateAddress(IPAddress address)
+        {
+            if (address.IsIPv4MappedToIPv6)
+            {
+                return IsPrivateAddress(address.MapToIPv4());
+            }
+            if (IPAddress.IsLoopback(address))
+            {
+                return true;
+            }
+
+            if (address.AddressFamily == AddressFamily.InterNetwork)
+            {
+                byte[] b = address.GetAddressBytes();
+                return b[0] == 0                                // 0.0.0.0/8  "this network"
+                       || b[0] == 10                            // 10/8
+                       || b[0] == 127                           // 127/8
+                       || (b[0] == 169 && b[1] == 254)          // 169.254/16 link-local
+                       || (b[0] == 172 && b[1] >= 16 && b[1] <= 31)  // 172.16/12
+                       || (b[0] == 192 && b[1] == 168)          // 192.168/16
+                       || (b[0] == 100 && b[1] >= 64 && b[1] <= 127) // 100.64/10 CGNAT
+                       || b[0] >= 224;                          // multicast and reserved
+            }
+
+            if (address.AddressFamily == AddressFamily.InterNetworkV6)
+            {
+                if (address.IsIPv6LinkLocal)
+                {
+                    return true;
+                }
+                // Unique local addresses fc00::/7
+                return (address.GetAddressBytes()[0] & 0xFE) == 0xFC;
+            }
+
+            return true;
+        }
 
         private static bool HostContains(Uri? url, string fragment)
             => url != null && url.IsAbsoluteUri
@@ -515,6 +616,37 @@ namespace CKAN.GUI
             return null;
         }
 
+        /// <summary>
+        /// A short, stable key for a piece of artwork's source URL. Used in the
+        /// cover cache file name so that a change of source produces a different
+        /// cache entry rather than silently reusing the old image.
+        /// </summary>
+        private static string CoverKey(string? bannerUrl)
+            => bannerUrl == null
+                   ? "none"
+                   : StableHash(bannerUrl).ToString("x8", CultureInfo.InvariantCulture);
+
+        /// <summary>
+        /// FNV-1a over the UTF-16 code units of the value. Deliberately not
+        /// string.GetHashCode(), which is randomized per process and so would
+        /// make the cache file name different on every run.
+        /// </summary>
+        private static uint StableHash(string value)
+        {
+            const uint Offset = 2166136261u;
+            const uint Prime  = 16777619u;
+
+            uint hash = Offset;
+            foreach (char c in value)
+            {
+                hash ^= (byte)(c & 0xFF);
+                hash *= Prime;
+                hash ^= (byte)((c >> 8) & 0xFF);
+                hash *= Prime;
+            }
+            return hash;
+        }
+
         private static string? SpaceDockBannerUrl(string? background)
         {
             if (background == null)
@@ -522,8 +654,21 @@ namespace CKAN.GUI
                 return null;
             }
 
-            // The API returns site relative paths, sometimes with a leading slash.
-            string path = background.Trim().TrimStart('/');
+            string value = background.Trim();
+            if (value.Length == 0)
+            {
+                return null;
+            }
+
+            // SpaceDock returns an absolute URL, so prefixing it again produces
+            // "https://spacedock.info/https://spacedock.info/..." and a 404.
+            // Accept absolute URLs as-is and only prefix genuinely relative paths.
+            if (Uri.TryCreate(value, UriKind.Absolute, out Uri? absolute) && absolute != null)
+            {
+                return IsHttp(absolute) ? absolute.AbsoluteUri : null;
+            }
+
+            string path = value.TrimStart('/');
             return path.Length == 0 ? null : "https://spacedock.info/" + path;
         }
 
@@ -541,8 +686,66 @@ namespace CKAN.GUI
             {
                 request.UserAgent = CKAN.Net.UserAgentString;
                 request.Timeout   = TimeoutMilliseconds;
+                // Redirects are followed manually in GetResponseChecked so each hop can
+                // be checked; letting .NET follow them would allow a public URL to
+                // bounce us to a private one.
+                request.AllowAutoRedirect = false;
             }
             return request;
+        }
+
+        /// <summary>
+        /// 308 Permanent Redirect. The enum member only exists on .NET 5+, so the
+        /// numeric value is compared directly to keep the net481 target compiling.
+        /// </summary>
+        private const int PermanentRedirect = 308;
+
+        private static bool IsRedirect(HttpStatusCode status)
+            => status == HttpStatusCode.MovedPermanently
+               || status == HttpStatusCode.Found
+               || status == HttpStatusCode.SeeOther
+               || status == HttpStatusCode.TemporaryRedirect
+               || (int)status == PermanentRedirect;
+
+        /// <summary>
+        /// Send a GET and follow redirects by hand, refusing to land on any destination
+        /// that <see cref="IsSafeRemote"/> rejects. Returns null when the chain is too
+        /// long or leads somewhere unsafe.
+        /// </summary>
+        private static WebResponse? GetResponseChecked(Uri url)
+        {
+            Uri current = url;
+            for (int hop = 0; hop <= MaxRedirects; ++hop)
+            {
+                if (!IsSafeRemote(current))
+                {
+                    log.Debug($"Refusing artwork request to {current}");
+                    return null;
+                }
+
+                HttpWebRequest? request = CreateRequest(current);
+                if (request == null)
+                {
+                    return null;
+                }
+
+                var response = (HttpWebResponse)request.GetResponse();
+                if (!IsRedirect(response.StatusCode))
+                {
+                    return response;
+                }
+
+                string? location = response.Headers["Location"];
+                response.Close();
+                if (location == null
+                    || !Uri.TryCreate(current, location, out Uri? next)
+                    || next == null)
+                {
+                    return null;
+                }
+                current = next;
+            }
+            return null;
         }
 
         private static string? HttpGetString(Uri url)
@@ -590,14 +793,12 @@ namespace CKAN.GUI
 
         private static byte[]? HttpGetBytes(Uri url)
         {
-            HttpWebRequest? request = CreateRequest(url);
-            if (request == null)
+            using (WebResponse? response = GetResponseChecked(url))
             {
-                return null;
-            }
-
-            using (WebResponse response = request.GetResponse())
-            {
+                if (response == null)
+                {
+                    return null;
+                }
                 Stream? stream = response.GetResponseStream();
                 if (stream == null)
                 {
@@ -837,6 +1038,12 @@ namespace CKAN.GUI
             return token != null && token.Type == JTokenType.String ? token.ToString() : null;
         }
 
+        private static int? JsonInt(JObject payload, string key)
+        {
+            JToken? token = payload[key];
+            return token != null && token.Type == JTokenType.Integer ? token.Value<int>() : (int?)null;
+        }
+
         private static string? Trimmed(string? value)
         {
             if (value == null)
@@ -850,7 +1057,10 @@ namespace CKAN.GUI
 
         private static JObject InfoToJson(ModVisualInfo info)
         {
-            JObject payload = new JObject();
+            JObject payload = new JObject
+            {
+                ["v"] = CacheFormatVersion,
+            };
             if (info.BannerUrl != null)
             {
                 payload["bannerUrl"] = info.BannerUrl;
@@ -879,6 +1089,14 @@ namespace CKAN.GUI
 
             JObject? payload = TryParseObject(json);
             if (payload == null)
+            {
+                return null;
+            }
+
+            // The cache stores the already-resolved banner URL, so an entry
+            // written by an older build keeps whatever that build got wrong.
+            // Treat anything below the current format as stale and re-resolve.
+            if (JsonInt(payload, "v") is not int version || version < CacheFormatVersion)
             {
                 return null;
             }
