@@ -3285,13 +3285,11 @@ namespace CKAN.GUI
             private IReadOnlyList<GUIMod> modules = Array.Empty<GUIMod>();
             private GameInstance? instance;
             private string dataKey = "";
-            // Keep the two settings that CKAN does not currently expose as
-            // global switches in the model beside the live configuration-backed
-            // values. This also gives the native page stable state while it is
+            // Live configuration-backed values, reloaded whenever the page is
             // rebuilt for a theme switch or a registry refresh.
             private readonly bool[] settingToggles =
             {
-                false, true, false, true, true,
+                false, true, false,
             };
 
             public ModernSimpleView(Action<IReadOnlyList<GUIMod>> setupCollection,
@@ -3595,12 +3593,9 @@ namespace CKAN.GUI
                 behaviourGroup.AddRow(Properties.Resources.ModernShellSettingsDevBuilds,
                                       Properties.Resources.ModernShellSettingsPrereleases,
                                       MakeSettingToggle(2));
-                behaviourGroup.AddRow(Properties.Resources.ModernShellSettingsVerify,
-                                      Properties.Resources.ModernShellSettingsSlower,
-                                      MakeSettingToggle(3));
-                behaviourGroup.AddRow(Properties.Resources.ModernShellSettingsArtwork,
-                                      Properties.Resources.ModernShellSettingsArtworkDetail,
-                                      MakeSettingToggle(4));
+                // Verification is enforced by the download pipeline and artwork
+                // caching is intrinsic to ModVisualMetadataService. Neither has
+                // a supported user switch, so do not offer inert preferences.
 
                 long installBytes = modules.Where(mod => mod.IsInstalled)
                                            .Sum(mod => mod.Module.install_size);

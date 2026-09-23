@@ -2217,7 +2217,7 @@ namespace CKAN.GUI
                 }
                 foreach (var card in row.Cards)
                 {
-                    if (card.IsDisposed
+                    if (card.IsDisposed || !card.Visible
                         || !viewport.IntersectsWith(card.RectangleToScreen(card.ClientRectangle)))
                     {
                         continue;
@@ -2246,6 +2246,7 @@ namespace CKAN.GUI
                 var card = pendingArt.Dequeue();
                 if (card.IsDisposed)
                 {
+                    artInFlight.Remove(card.Mod.Identifier);
                     continue;
                 }
                 activeArtLoads++;
@@ -2281,11 +2282,17 @@ namespace CKAN.GUI
                                                         SoftTheme.ScaleInt(ModCard.WidthFor(density), DeviceDpiSafe),
                                                         SoftTheme.ScaleInt(ModCard.CoverHeightFor(density), DeviceDpiSafe),
                                                         token), token).ConfigureAwait(true);
-                if (!IsDisposed && !card.IsDisposed && !token.IsCancellationRequested)
+                if (!IsDisposed && !token.IsCancellationRequested)
                 {
+                    // The request belongs to the identifier, not just this card.
+                    // Keep the result for other shelves even if its initiating card
+                    // was disposed while the download was in flight.
                     if (artByMod.TryGetValue(identifier, out var previous)) previous.Dispose();
                     artByMod[identifier] = image;
-                    card.Cover = (Image)image.Clone();
+                    if (!card.IsDisposed)
+                    {
+                        card.Cover = (Image)image.Clone();
+                    }
                 }
                 else image.Dispose();
             }

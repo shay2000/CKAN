@@ -177,18 +177,15 @@ namespace CKAN.GUI
 
             e.Graphics.CompositingQuality = CompositingQuality.HighQuality;
             e.Graphics.InterpolationMode  = InterpolationMode.HighQualityBicubic;
-            e.Graphics.DrawImage(frame, dest, 0, 0, frame.Width, frame.Height,
-                                 GraphicsUnit.Pixel, AlphaMatrix(alpha));
-        }
-
-        private static ImageAttributes AlphaMatrix(float alpha)
-        {
-            var attributes = new ImageAttributes();
-            var matrix = new ColorMatrix { Matrix33 = alpha };
-            attributes.SetColorMatrix(matrix,
-                                      ColorMatrixFlag.Default,
-                                      ColorAdjustType.Bitmap);
-            return attributes;
+            using (var attributes = new ImageAttributes())
+            {
+                var matrix = new ColorMatrix { Matrix33 = alpha };
+                attributes.SetColorMatrix(matrix,
+                                          ColorMatrixFlag.Default,
+                                          ColorAdjustType.Bitmap);
+                e.Graphics.DrawImage(frame, dest, 0, 0, frame.Width, frame.Height,
+                                     GraphicsUnit.Pixel, attributes);
+            }
         }
 
         public void Dispose()

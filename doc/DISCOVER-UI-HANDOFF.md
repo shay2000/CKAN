@@ -267,6 +267,24 @@ remains required. Never substitute the HTML concept art for native UI evidence.
 
 ### Checkpoints
 
+- First checkpoint pushed: `91a34c03`; both remote branch and PR head verified.
+- Catalogue Enter/Space now opens details without staging installs/removals,
+  including unavailable/autodetected rows. PaneReveal disposes ImageAttributes
+  on normal drawing and both matrix/drawing exception paths.
+- Artwork review was partly stale: offscreen identifiers and cached duplicates
+  already worked. Fixed hidden-card requests, disposed queued cards retaining
+  in-flight markers, and initiating-card disposal losing artwork for duplicates.
+- Removed unsupported verification/artwork switches and bindings without
+  changing integrity checks, caching or legacy stored configuration values.
+- Native Refresh now calls UpdateRepo, matching classic Refresh; previously it
+  only rebuilt the list from the unchanged local registry.
+- Parent independently reran: artwork harness 9 tests; catalogue/pane harness
+  86 assertions; settings 3 source-contract tests and 1 runtime harness (14
+  assertions); bulk actions 15 assertions. All passed. Runtime harnesses compile
+  actual source methods against doubles, NOT a native Windows UI.
+- Follow-up investigation: gallery ModCard keyboard routing and signed tick
+  rollover in PaneReveal. Do not confuse these with already verified fixes.
+
 - Initial investigation: working tree clean; PR #1 open; remote matches starting
   commit. Review findings are leads, not independently verified facts yet.
 - Bulk-update regression reproduced: the normal installed selection was toggled

@@ -221,17 +221,17 @@ namespace CKAN.GUI
         {
             if (CurrentInstance != null && configuration != null && !Waiting)
             {
-                RefreshModList(false);
+                // Match the classic Refresh action: fetch repository metadata,
+                // rather than merely rebuilding the grid from the local registry.
+                UpdateRepo();
             }
         }
 
         /// <summary>
         /// Read one of the small, native-shell settings without making the
         /// native shell know about either configuration implementation.
-        /// Index 3 (download verification) and index 4 (artwork caching) are
-        /// native-shell preferences because CKAN's existing core API has no
-        /// corresponding global switches; they are still persisted per game
-        /// instance alongside the rest of the GUI configuration.
+        /// Only expose settings with consumers. Download verification and
+        /// artwork caching are not optional native-shell preferences.
         /// </summary>
         internal bool GetModernSetting(int index)
         {
@@ -243,10 +243,6 @@ namespace CKAN.GUI
                     return !(configuration?.SuppressRecommendations ?? false);
                 case 2:
                     return ServiceLocator.Container.Resolve<IConfiguration>().DevBuilds ?? false;
-                case 3:
-                    return configuration?.ModernVerifyDownloads ?? true;
-                case 4:
-                    return configuration?.ModernCacheArtwork ?? true;
                 default:
                     return false;
             }
@@ -272,20 +268,8 @@ namespace CKAN.GUI
                 case 2:
                     ServiceLocator.Container.Resolve<IConfiguration>().DevBuilds = value;
                     break;
-                case 3:
-                    if (configuration != null)
-                    {
-                        configuration.ModernVerifyDownloads = value;
-                    }
-                    break;
-                case 4:
-                    if (configuration != null)
-                    {
-                        configuration.ModernCacheArtwork = value;
-                    }
-                    break;
                 default:
-                    break;
+                    return;
             }
             if (CurrentInstance != null && configuration != null)
             {

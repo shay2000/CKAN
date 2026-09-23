@@ -487,11 +487,11 @@ namespace CKAN.GUI
         {
             if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space)
             {
-                if (ActionAppearance().Enabled)
-                {
-                    ActionClicked?.Invoke(this);
-                }
+                // Activating a row opens details, just like clicking its body.
+                // Never stage an install/removal merely by pressing Enter/Space.
+                Activated?.Invoke(this);
                 e.Handled = true;
+                e.SuppressKeyPress = true;
             }
             base.OnKeyDown(e);
         }
