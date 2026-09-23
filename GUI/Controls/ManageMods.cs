@@ -395,9 +395,14 @@ namespace CKAN.GUI
                                 .Where(mod => mod.HasUpdate)
                                 .ToList())
             {
-                if (!queued.Contains(mod.Identifier))
+                if (!queued.Contains(mod.Identifier)
+                    && !mod.IsAutodetected
+                    && mod.IsInstallable()
+                    && mod.LatestCompatibleMod != null)
                 {
-                    ToggleModInstalled(mod);
+                    // Updating is not an install-checkbox toggle: for an
+                    // installed mod that toggle would stage a removal.
+                    mod.SelectedMod = mod.LatestCompatibleMod;
                 }
             }
         }
@@ -418,9 +423,11 @@ namespace CKAN.GUI
                                               && mod.IsInstallable())
                                 .ToList())
             {
-                if (!queued.Contains(mod.Identifier))
+                if (!queued.Contains(mod.Identifier) && mod.SelectedMod == null)
                 {
-                    ToggleModInstalled(mod);
+                    // Stage an install rather than toggling it. Duplicate
+                    // members and repeated clicks must not cancel selection.
+                    mod.SelectedMod = mod.LatestCompatibleMod;
                 }
             }
         }

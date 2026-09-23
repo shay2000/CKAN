@@ -243,6 +243,48 @@ Caveats learned the hard way:
 * `CKAN-GUI` is a WinForms app: `System.Windows.Automation` sees top-level menus but
   not every `TabControl` tab, so click by coordinate rather than by name for tabs.
 
+## Active repair handoff — PR #1
+
+Work is on `feature/netflix-ui`; do not merge or push to `master`.
+The user authorised fixes, regression tests, handoff updates and checkpoint pushes
+on the existing PR. Starting commit: `504633b884cfb9d4fca48c5d054e4d2f965036f6`.
+
+### In progress
+
+- Independently verify the review's bulk-update staging bug in `ManageMods`.
+- Review artwork request scheduling, duplicates and cancellation.
+- Review catalogue keyboard activation and reveal-animation resource ownership.
+- Remove or correct misleading settings without weakening download integrity.
+- Build both GUI frameworks and run feasible automated tests.
+
+### Environment and verification boundaries
+
+This repair session runs on Linux ARM64, not a Windows desktop. A local .NET
+10 SDK has been installed at `/home/opc/workspace/.tools/dotnet`. Build and
+non-visual regression results will be recorded below; none prove the actual
+Windows Forms interface works visually. The Windows/KSP manual checklist above
+remains required. Never substitute the HTML concept art for native UI evidence.
+
+### Checkpoints
+
+- Initial investigation: working tree clean; PR #1 open; remote matches starting
+  commit. Review findings are leads, not independently verified facts yet.
+- Bulk-update regression reproduced: the normal installed selection was toggled
+  to null (removal), not the latest compatible version. QueueAllUpdates now
+  explicitly selects the latest compatible version, preserving queued changes.
+- Collection staging regression reproduced: a repeated member toggled its
+  installation back off. Collection staging now selects, never toggles, and
+  preserves existing version choices.
+- `DOTNET=/path/to/dotnet python3 qa/check_manage_mod_actions.py`: 15 passed.
+  The two reported failures were observed before fixes. The harness executes
+  production C# method bodies with model doubles; it does not test WinForms
+  events or real registry/install integration.
+- Both GUI target builds succeeded after this batch (zero errors; existing
+  warnings remain). Baseline `dotnet test Tests/Tests.csproj -f net10.0
+  -p:EnableWindowsTargeting=true` passed 1,319 tests. Dependency vulnerability
+  warnings include System.Drawing.Common 4.7.0 and cryptography/build packages;
+  dependency remediation needs a separate compatibility-reviewed follow-up.
+
 ## Known limitations and follow-ups
 
 * **One screenshot per mod.** The README parser takes the first usable image. A
