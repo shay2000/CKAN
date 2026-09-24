@@ -21,6 +21,99 @@ namespace CKAN.GUI
             InitializeComponent();
             ToolTip.ScaleFonts();
             staticRowCount = MetadataTable.RowCount;
+
+            // The tab can be taller than the pane once a mod carries a lot of
+            // resource links, and nothing here scrolled before.
+            AutoScroll = true;
+
+            // Separators are drawn from the table's own Paint event: that is
+            // the one point where the line lands on top of the table's
+            // background but underneath the cell contents, so the gaps between
+            // rows keep it visible.
+            MetadataTable.Paint += (sender, e) => DrawRowSeparators(e.Graphics);
+        }
+
+        /// <summary>
+        /// A hairline under every row but the last, so the tab reads as a list
+        /// of rows rather than as a form.
+        /// </summary>
+        private void DrawRowSeparators(Graphics g)
+        {
+            if (MetadataTable.GetRowHeights() is not int[] heights || heights.Length == 0)
+            {
+                return;
+            }
+
+            int y = MetadataTable.Padding.Top;
+            using (var pen = new Pen(SoftTheme.Border))
+            {
+                for (int row = 0; row < heights.Length; ++row)
+                {
+                    y += heights[row];
+
+                    // Nothing under the final row, and nothing under a row
+                    // that collapsed because all of its controls are hidden.
+                    if (row == heights.Length - 1 || heights[row] <= 0)
+                    {
+                        continue;
+                    }
+
+                    // Centre the line in the gap below the row rather than at
+                    // the row boundary, where it would read as belonging to
+                    // the next row.
+                    int gap = MetadataTable.GetControlFromPosition(0, row)?.Margin.Bottom ?? 0;
+                    g.DrawLine(pen, 0, y - (gap / 2), MetadataTable.Width, y - (gap / 2));
+                }
+            }
+        }
+
+        /// <summary>
+        /// Bring the metadata table onto the soft palette: muted labels, links in
+        /// the accent colour and value boxes that blend into the page instead of
+        /// reading as disabled form fields.
+        ///
+        /// The designer bakes <see cref="SystemColors"/> values into every label
+        /// and text box, so this walks the tree rather than editing the designer
+        /// file, which would be regenerated away on the next design-time save.
+        /// </summary>
+        public void ApplySoftTheme()
+        {
+            BackColor               = SoftTheme.Surface;
+            MetadataTable.BackColor = Color.Transparent;
+            ApplySoftTheme(MetadataTable);
+        }
+
+        private static void ApplySoftTheme(Control parent)
+        {
+            foreach (Control child in parent.Controls)
+            {
+                if (child.BackColor == SystemColors.Control)
+                {
+                    // TransparentTextBox and the panels both support a
+                    // transparent background.
+                    child.BackColor = Color.Transparent;
+                }
+                if (child.ForeColor == SystemColors.ControlText)
+                {
+                    child.ForeColor = SoftTheme.TextPrimary;
+                }
+                else if (child.ForeColor == SystemColors.GrayText)
+                {
+                    child.ForeColor = SoftTheme.TextMuted;
+                }
+
+                if (child is LinkLabel link)
+                {
+                    link.LinkColor        = SoftTheme.Accent;
+                    link.ActiveLinkColor  = SoftTheme.AccentDeep;
+                    link.VisitedLinkColor = SoftTheme.Accent;
+                }
+
+                if (child.HasChildren)
+                {
+                    ApplySoftTheme(child);
+                }
+            }
         }
 
         public void UpdateModInfo(GUIMod gui_module)
@@ -122,8 +215,8 @@ namespace CKAN.GUI
             var link = new LinkLabel()
             {
                 AutoSize     = true,
-                ForeColor    = SystemColors.GrayText,
-                LinkColor    = SystemColors.GrayText,
+                ForeColor    = SoftTheme.TextMuted,
+                LinkColor    = SoftTheme.Accent,
                 LinkBehavior = LinkBehavior.HoverUnderline,
                 Margin       = new Padding(0, 0, 2, 2),
                 Text         = withComma ? $"{name}," : name,
@@ -180,10 +273,28 @@ namespace CKAN.GUI
 
         private void MetadataTable_Resize(object sender, EventArgs args)
         {
-            MetadataTable.SuspendLayout();
-            WrapRows();
-            MetadataTable.ResumeLayout(true);
+            // Re-entrancy guard. WrapRows assigns control sizes, which can
+            // raise Resize again - and now that the panel scrolls, a
+            // scrollbar appearing changes the column widths, which is exactly
+            // the feedback loop that turns into a resize storm.
+            if (wrapping)
+            {
+                return;
+            }
+            wrapping = true;
+            try
+            {
+                MetadataTable.SuspendLayout();
+                WrapRows();
+                MetadataTable.ResumeLayout(true);
+            }
+            finally
+            {
+                wrapping = false;
+            }
         }
+
+        private bool wrapping;
 
         private void ClearResourceLinks()
         {
@@ -212,7 +323,7 @@ namespace CKAN.GUI
                 Label lbl = new Label()
                 {
                     AutoSize  = true,
-                    ForeColor = SystemColors.GrayText,
+                    ForeColor = SoftTheme.TextMuted,
                     Text      = label,
                 };
                 LinkLabel llbl = new LinkLabel()
@@ -222,8 +333,7 @@ namespace CKAN.GUI
                     TabStop  = true,
                     Text     = link.OriginalString,
                     Tag      = link,
-                    // Lighter colors for dark mode
-                    LinkColor = BackColor.LinkColorForBackColor(),
+                    LinkColor = SoftTheme.Accent,
                 };
                 llbl.LinkClicked += new LinkLabelLinkClickedEventHandler(LinkLabel_LinkClicked);
                 llbl.KeyDown += new KeyEventHandler(LinkLabel_KeyDown);

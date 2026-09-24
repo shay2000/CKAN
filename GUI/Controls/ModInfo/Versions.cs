@@ -37,6 +37,83 @@ namespace CKAN.GUI
         }
 
         /// <summary>
+        /// Bring the versions tab onto the soft palette.
+        ///
+        /// The four legend labels are not just a key: the table copies
+        /// their <see cref="Control.BackColor"/> and <see cref="Control.ForeColor"/>
+        /// onto its rows, so recolouring the labels is what recolours the
+        /// versions. Restyling them here rather than in the designer keeps
+        /// that single source of truth intact, and means the saturated
+        /// green and gold the designer shipped with cannot find their way
+        /// back into the table through the row colours.
+        ///
+        /// The bold and italic faces the designer put on two of the labels
+        /// are deliberately left alone, because they are part of what the
+        /// labels mean - the installed row is the bold one.
+        /// </summary>
+        public void ApplySoftTheme()
+        {
+            BackColor            = SoftTheme.Surface;
+            LabelTable.BackColor = SoftTheme.Surface;
+
+            OverallSummaryLabel.ForeColor     = SoftTheme.TextSecondary;
+            StabilityToleranceLabel.ForeColor = SoftTheme.TextSecondary;
+
+            // Colours only. The combo is left on its standard flat style: a
+            // DropDownList combo set to FlatStyle.Flat loses its frame and its
+            // text, and collapses to a bare dropdown arrow on the sheet.
+            StabilityToleranceComboBox.BackColor = SoftTheme.Surface;
+            StabilityToleranceComboBox.ForeColor = SoftTheme.TextPrimary;
+
+            // The version the user should actually pick. A pale wash of
+            // green rather than the designer's saturated one: a full-width
+            // block of #008000 beside a table of muted rows shouts, and on
+            // a white sheet it is the only thing the eye lands on.
+            RestyleLegend(LatestCompatibleLabel, SoftTheme.SuccessSoft,
+                          Deepen(SoftTheme.Success));
+
+            // Compatible, but not the newest. This is the ordinary case, so
+            // it gets the ordinary treatment - the sunken fill the rest of
+            // the app uses for plain content - which leaves the two tinted
+            // cases as the only ones that draw the eye.
+            RestyleLegend(CompatibleLabel, SoftTheme.SurfaceSunken, SoftTheme.TextPrimary);
+
+            // Already installed. This fill is only ever seen in the legend:
+            // the installed row is marked by its bold face and takes its
+            // fill from whichever of the other three applies, so this is
+            // chosen to read as a swatch against the sheet rather than to
+            // match a row exactly.
+            RestyleLegend(InstalledLabel, SoftTheme.AccentSoft, SoftTheme.AccentDeep);
+
+            // Newer than the user's stability tolerance. Amber says "you
+            // can have this, but it is not what you asked for".
+            RestyleLegend(PrereleaseLabel, SoftTheme.WarningSoft,
+                          Deepen(SoftTheme.Warning));
+        }
+
+        /// <summary>
+        /// Give a legend label the fill and text colour its rows will
+        /// inherit.
+        ///
+        /// The text colour is passed in rather than worked out from the
+        /// fill, because a pale wash of a hue needs a deep version of that
+        /// same hue to read against it - not the black or white a plain
+        /// light/dark test would pick.
+        /// </summary>
+        private static void RestyleLegend(Label label, Color fill, Color text)
+        {
+            label.BackColor = fill;
+            label.ForeColor = text;
+        }
+
+        /// <summary>
+        /// Pull a hue towards the text colour until it is dark enough to
+        /// read on its own pale wash.
+        /// </summary>
+        private static Color Deepen(Color hue)
+            => SoftTheme.Mix(hue, SoftTheme.TextPrimary, 0.5f);
+
+        /// <summary>
         /// Make the ListView redraw itself.
         /// Works around a problem where the headers aren't drawn when this tab activates.
         /// </summary>

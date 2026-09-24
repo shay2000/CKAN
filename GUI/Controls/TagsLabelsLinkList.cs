@@ -78,29 +78,151 @@ namespace CKAN.GUI
 
         private static int LinkLabelBottom(LinkLabel? lbl)
             => lbl == null ? 0
-                           : lbl.Bottom + lbl.Margin.Bottom + lbl.Padding.Bottom;
+                           : lbl.Bottom + lbl.Margin.Bottom;
 
         public int TagsHeight
             => LinkLabelBottom(Controls.OfType<LinkLabel>()
                                        .LastOrDefault());
+
+        /// <summary>
+        /// A tag or label chip.
+        ///
+        /// The stock <see cref="LinkLabel"/> renders as bare coloured text,
+        /// which reads as a hyperlink and is the one element of this header
+        /// that still looks like a web page. A row of tags is presented as
+        /// chips on the platforms this is modelled on, so the text is drawn on
+        /// a soft rounded pill instead.
+        ///
+        /// It stays a <see cref="LinkLabel"/> so every bit of the existing
+        /// wiring - left click to filter, middle click to merge, the context
+        /// menu, the tooltips - keeps working untouched.
+        /// </summary>
+        private sealed class TagChip : LinkLabel
+        {
+            /// <summary>Horizontal padding inside the pill, in 96 DPI units.</summary>
+            private const int DesignPadX = 9;
+
+            /// <summary>Vertical padding inside the pill, in 96 DPI units.</summary>
+            private const int DesignPadY = 3;
+
+            private readonly Color fill;
+            private bool hovered;
+
+            public TagChip(string text, Color fill)
+            {
+                this.fill = fill;
+
+                SetStyle(ControlStyles.SupportsTransparentBackColor
+                         | ControlStyles.OptimizedDoubleBuffer
+                         | ControlStyles.AllPaintingInWmPaint
+                         | ControlStyles.ResizeRedraw, true);
+
+                AutoSize         = true;
+                BackColor        = Color.Transparent;
+                LinkBehavior     = LinkBehavior.NeverUnderline;
+                VisitedLinkColor = IdleText;
+                ActiveLinkColor  = HoverText;
+                LinkColor        = IdleText;
+                Text             = text;
+
+                ApplyMetrics();
+            }
+
+            /// <summary>
+            /// The chip text at rest.
+            ///
+            /// Darker than <see cref="SoftTheme.TextSecondary"/>, which is what
+            /// a caption on the page uses. The chip sits on its own fill rather
+            /// than on the sheet, so at chip size the muted grey the rest of the
+            /// header uses comes out at around 3.5:1 against it - readable in a
+            /// screenshot and a strain in a list of twelve tags.
+            /// </summary>
+            private static Color IdleText
+                => SoftTheme.Mix(SoftTheme.TextSecondary, SoftTheme.TextPrimary, 0.45f);
+
+            private static Color HoverText => SoftTheme.AccentDeep;
+
+            /// <summary>
+            /// The fill for a chip with no colour of its own.
+            ///
+            /// A shade stronger than <see cref="SoftTheme.SurfaceSunken"/>:
+            /// that token is tuned for a large sunken area, and at chip size on
+            /// a white sheet it comes close enough to the page that the pill
+            /// only reads where a rounded corner happens to catch the light.
+            /// </summary>
+            internal static Color NeutralFill
+                => SoftTheme.Mix(SoftTheme.SurfaceSunken, SoftTheme.BorderStrong, 0.45f);
+
+            protected override void OnHandleCreated(EventArgs e)
+            {
+                base.OnHandleCreated(e);
+                ApplyMetrics();
+            }
+
+            protected override void OnDpiChangedAfterParent(EventArgs e)
+            {
+                base.OnDpiChangedAfterParent(e);
+                ApplyMetrics();
+            }
+
+            /// <summary>
+            /// The padding is what gives the text room inside the pill, and
+            /// because the label is auto-sized it also feeds the control's
+            /// preferred size - which is what the row height is measured from.
+            /// </summary>
+            private void ApplyMetrics()
+            {
+                int padX = SoftTheme.ScaleInt(DesignPadX, DeviceDpi);
+                int padY = SoftTheme.ScaleInt(DesignPadY, DeviceDpi);
+                Padding = new Padding(padX, padY, padX, padY);
+            }
+
+            protected override void OnMouseEnter(EventArgs e)
+            {
+                base.OnMouseEnter(e);
+                hovered = true;
+                LinkColor = HoverText;
+                Invalidate();
+            }
+
+            protected override void OnMouseLeave(EventArgs e)
+            {
+                base.OnMouseLeave(e);
+                hovered = false;
+                LinkColor = IdleText;
+                Invalidate();
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                var bounds = new Rectangle(0, 0, Width - 1, Height - 1);
+                if (bounds.Width > 0 && bounds.Height > 0)
+                {
+                    Color back = hovered ? SoftTheme.AccentSoft : fill;
+                    // Half the height, so the corners close into a pill.
+                    SoftTheme.FillRounded(e.Graphics, bounds, back, bounds.Height / 2);
+                }
+                base.OnPaint(e);
+            }
+        }
 
         private LinkLabel TagLabelLink(string name,
                                        object tag,
                                        string toolTip,
                                        LinkLabelLinkClickedEventHandler onClick)
         {
-            var backColor = (tag is ModuleLabel mlbl ? mlbl.Color : null)
-                            ?? Color.Transparent;
-            var link = new LinkLabel()
+            // A label carries the user's own colour, so the chip takes a pale
+            // wash of it; a tag has no colour of its own and gets the neutral
+            // chip the rest of the design uses for secondary content.
+            var custom = (tag as ModuleLabel)?.Color;
+            var fill   = custom is Color c && c.A == byte.MaxValue && c != Color.Transparent
+                             ? SoftTheme.Mix(c, SoftTheme.Surface, 0.72f)
+                             : TagChip.NeutralFill;
+
+            var link = new TagChip(name, fill)
             {
-                AutoSize     = true,
-                BackColor    = backColor,
-                LinkColor    = backColor.ForeColorForBackColor()
-                               ?? SystemColors.GrayText,
-                LinkBehavior = LinkBehavior.HoverUnderline,
-                Margin       = new Padding(0, 2, 4, 2),
-                Text         = name,
-                Tag          = tag,
+                Margin = new Padding(0, 2, 6, 2),
+                Tag    = tag,
             };
             link.LinkClicked += onClick;
             ToolTip.SetToolTip(link, toolTip);

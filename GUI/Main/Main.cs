@@ -45,6 +45,7 @@ namespace CKAN.GUI
         public PluginController? pluginController;
 
         private readonly TabController tabController;
+        private ModernShell? modernShell;
         private string? focusIdent;
 
         private bool needRegistrySave = false;
@@ -182,8 +183,197 @@ namespace CKAN.GUI
             tabController = new TabController(MainTabControl);
             tabController.ShowTab(ManageModsTabPage.Name);
 
+            ApplySoftChrome();
+
             // Disable the modinfo controls until a mod has been choosen. This has an effect if the modlist is empty.
             ActiveModInfo = null;
+
+            InitializeModernShell();
+        }
+
+        /// <summary>
+        /// Replace the visible legacy frame with the native CKAN shell.
+        /// The old controls stay instantiated and available to the backend and
+        /// to the existing dialogs; only the user-facing host changes here.
+        /// </summary>
+        private void InitializeModernShell()
+        {
+            FormBorderStyle = FormBorderStyle.None;
+            ControlBox = false;
+            MainMenuStrip = null;
+            // Keep the native shell usable at compact desktop sizes while its
+            // rail and responsive catalogue controls are still readable.
+            MinimumSize = new Size(960, 680);
+            MaximizedBounds = Screen.FromControl(this).WorkingArea;
+
+            ManageModsTabPage.Controls.Remove(ManageMods);
+            MainMenu.Visible = false;
+            statusStrip1.Visible = false;
+            splitContainer1.Visible = false;
+            MainTabControl.Visible = false;
+
+            modernShell = new ModernShell(this, ManageMods);
+            Controls.Add(modernShell);
+            modernShell.BringToFront();
+        }
+
+        internal void RefreshModernCatalogue()
+        {
+            if (CurrentInstance != null && configuration != null && !Waiting)
+            {
+                // Match the classic Refresh action: fetch repository metadata,
+                // rather than merely rebuilding the grid from the local registry.
+                UpdateRepo();
+            }
+        }
+
+        /// <summary>
+        /// Read one of the small, native-shell settings without making the
+        /// native shell know about either configuration implementation.
+        /// Only expose settings with consumers. Download verification and
+        /// artwork caching are not optional native-shell preferences.
+        /// </summary>
+        internal bool GetModernSetting(int index)
+        {
+            switch (index)
+            {
+                case 0:
+                    return configuration?.CheckForUpdatesOnLaunch ?? false;
+                case 1:
+                    return !(configuration?.SuppressRecommendations ?? false);
+                case 2:
+                    return ServiceLocator.Container.Resolve<IConfiguration>().DevBuilds ?? false;
+                default:
+                    return false;
+            }
+        }
+
+        /// <summary>Persist a setting changed on the native Settings page.</summary>
+        internal void SetModernSetting(int index, bool value)
+        {
+            switch (index)
+            {
+                case 0:
+                    if (configuration != null)
+                    {
+                        configuration.CheckForUpdatesOnLaunch = value;
+                    }
+                    break;
+                case 1:
+                    if (configuration != null)
+                    {
+                        configuration.SuppressRecommendations = !value;
+                    }
+                    break;
+                case 2:
+                    ServiceLocator.Container.Resolve<IConfiguration>().DevBuilds = value;
+                    break;
+                default:
+                    return;
+            }
+            if (CurrentInstance != null && configuration != null)
+            {
+                configuration.Save(CurrentInstance);
+            }
+        }
+
+        /// <summary>Clear only CKAN's downloadable package cache.</summary>
+        internal void ClearModernDownloadCache()
+        {
+            if (!Waiting)
+            {
+                Manager.Cache?.RemoveAll();
+            }
+        }
+
+        /// <summary>
+        /// Re-scan and persist the current registry, then refresh the native
+        /// catalogue so its counts and cards reflect the operation.
+        /// </summary>
+        internal void RebuildModernRegistry()
+        {
+            if (CurrentInstance != null && !Waiting)
+            {
+                var registry = RegistryManager.Instance(CurrentInstance, repoData);
+                registry.ScanUnmanagedFiles();
+                registry.Save(false);
+                RefreshModList(false);
+            }
+        }
+
+        internal void ApplyModernChanges()
+        {
+            if (!Waiting && ManageMods.PendingChanges.Count != 0
+                && !ManageMods.HasPendingConflicts)
+            {
+                Changeset_OnConfirmChanges(ManageMods.PendingChanges.ToList());
+            }
+        }
+
+        /// <summary>
+        /// Restyle the window chrome (menu bar and status bar) to match the
+        /// soft Discover styling: flat surfaces, hairline separators, roomier
+        /// padding and a centred status message.
+        /// </summary>
+        private void ApplySoftChrome()
+        {
+            MainMenu.Renderer  = new SoftToolStripRenderer();
+            MainMenu.BackColor = SoftTheme.Surface;
+            MainMenu.ForeColor = SoftTheme.TextPrimary;
+            MainMenu.GripStyle = ToolStripGripStyle.Hidden;
+            MainMenu.Padding   = new Padding(10, 4, 0, 4);
+
+            statusStrip1.Renderer   = new SoftToolStripRenderer();
+            statusStrip1.BackColor  = SoftTheme.Backdrop;
+            statusStrip1.ForeColor  = SoftTheme.TextMuted;
+            statusStrip1.SizingGrip = false;
+            statusStrip1.Padding    = new Padding(8, 0, 12, 0);
+
+            StatusLabel.Font      = SoftTheme.MetaFont;
+            StatusLabel.ForeColor = SoftTheme.TextSecondary;
+            StatusLabel.Spring    = true;
+            // Centred, so a progress message reads as a single calm line
+            StatusLabel.TextAlign = ContentAlignment.MiddleCenter;
+
+            StatusInstanceLabel.Font      = SoftTheme.MetaFont;
+            StatusInstanceLabel.ForeColor = SoftTheme.TextMuted;
+            StatusInstanceLabel.Spring    = false;
+
+            // The splitter between the mod list and the detail pane is a bare
+            // grey gutter by default, which reads as a seam between two
+            // different applications. Paint it as a quiet backdrop instead.
+            splitContainer1.BackColor    = SoftTheme.Backdrop;
+            splitContainer1.Panel1.BackColor = SoftTheme.Backdrop;
+            splitContainer1.Panel2.BackColor = SoftTheme.Backdrop;
+
+            // The outer tab strip hosts full-window pages, so it sits on the
+            // backdrop rather than on a card surface.
+            MainTabControl.BackColor = SoftTheme.Backdrop;
+
+            // Tab pages default to the grey dialog colour, which shows as a
+            // frame around every docked page. Pages are added and removed as
+            // tabs are shown and hidden, so theme them as they arrive.
+            MainTabControl.ControlAdded += (sender, e) =>
+            {
+                if (e.Control is TabPage page)
+                {
+                    ApplySoftPageStyle(page);
+                }
+            };
+            foreach (TabPage page in MainTabControl.TabPages)
+            {
+                ApplySoftPageStyle(page);
+            }
+
+            ModInfo.BackColor = SoftTheme.Backdrop;
+            ModInfo.ApplySoftTheme();
+        }
+
+        private static void ApplySoftPageStyle(TabPage page)
+        {
+            // The visual-style background would otherwise win over BackColor.
+            page.UseVisualStyleBackColor = false;
+            page.BackColor               = SoftTheme.Backdrop;
         }
 
         protected override void OnLoad(EventArgs e)
@@ -611,6 +801,27 @@ namespace CKAN.GUI
             {
                 switch (m.Msg)
                 {
+                    case 0x0084: // WM_NCHITTEST: retain native edge resizing.
+                        if (modernShell != null && WindowState == FormWindowState.Normal)
+                        {
+                            long position = m.LParam.ToInt64();
+                            Point point = PointToClient(new Point(
+                                unchecked((short)(position & 0xffff)),
+                                unchecked((short)((position >> 16) & 0xffff))));
+                            int grip = Math.Max(6, DeviceDpi * 6 / 96);
+                            bool left = point.X < grip;
+                            bool right = point.X >= ClientSize.Width - grip;
+                            bool top = point.Y < grip;
+                            bool bottom = point.Y >= ClientSize.Height - grip;
+                            int hit = top && left ? 13 : top && right ? 14
+                                    : bottom && left ? 16 : bottom && right ? 17
+                                    : left ? 10 : right ? 11 : top ? 12 : bottom ? 15 : 1;
+                            if (hit != 1)
+                            {
+                                m.Result = new IntPtr(hit);
+                            }
+                        }
+                        break;
                     // Windows sends us this when you click outside the search dropdown
                     // Mono closes the dropdown automatically
                     case WM_PARENTNOTIFY:
@@ -633,6 +844,9 @@ namespace CKAN.GUI
                               ?.Controls
                                .OfType<T>()
                               ?? Enumerable.Empty<T>())
+                  .Concat(ManageMods is T modernManage
+                              ? Enumerable.Repeat(modernManage, 1)
+                              : Enumerable.Empty<T>())
                   .Concat(!splitContainer1.Panel2Collapsed
                           && ModInfo is T t
                               ? Enumerable.Repeat(t, 1)

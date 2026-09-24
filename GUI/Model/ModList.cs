@@ -150,9 +150,7 @@ namespace CKAN.GUI
             item.DefaultCellStyle.BackColor = GetRowBackground(mod, false, instance);
             item.DefaultCellStyle.ForeColor = item.DefaultCellStyle.BackColor.ForeColorForBackColor()
                                               ?? SystemColors.WindowText;
-            item.DefaultCellStyle.SelectionBackColor = SelectionBlend(item.DefaultCellStyle.BackColor);
-            item.DefaultCellStyle.SelectionForeColor = item.DefaultCellStyle.SelectionBackColor.ForeColorForBackColor()
-                                                       ?? SystemColors.HighlightText;
+            ApplySelection(item.DefaultCellStyle);
 
             var myChange = changes?.FindLast(ch => ch.Mod.Equals(mod));
 
@@ -364,9 +362,7 @@ namespace CKAN.GUI
                 row.DefaultCellStyle.BackColor = GetRowBackground(mod, conflicted, instance);
                 row.DefaultCellStyle.ForeColor = row.DefaultCellStyle.BackColor.ForeColorForBackColor()
                                                  ?? SystemColors.WindowText;
-                row.DefaultCellStyle.SelectionBackColor = SelectionBlend(row.DefaultCellStyle.BackColor);
-                row.DefaultCellStyle.SelectionForeColor = row.DefaultCellStyle.SelectionBackColor.ForeColorForBackColor()
-                                                          ?? SystemColors.HighlightText;
+                ApplySelection(row.DefaultCellStyle);
                 row.Visible = IsVisible(mod, instance, registry);
                 return row;
             }
@@ -686,10 +682,34 @@ namespace CKAN.GUI
 
         #endregion
 
+        /// <summary>
+        /// Apply the selected fill to a row's style.
+        ///
+        /// When the row has no tint of its own the fill is left unset so it
+        /// inherits from the grid. That matters because a per-row style
+        /// outranks <c>DataGridView.RowsDefaultCellStyle</c>, so setting a
+        /// colour here would silently override the accent that ManageMods
+        /// swaps in and out with the grid's focus - and it is what let the
+        /// saturated <see cref="SystemColors.Highlight"/> back into a table
+        /// that had otherwise been moved onto the soft palette.
+        ///
+        /// When the row does have a tint - a label colour, or the red used
+        /// for conflicts - the accent is blended over it, so the tint still
+        /// reads while the row is selected.
+        /// </summary>
+        private static void ApplySelection(DataGridViewCellStyle style)
+        {
+            style.SelectionBackColor = SelectionBlend(style.BackColor);
+            style.SelectionForeColor = style.SelectionBackColor == Color.Empty
+                                           ? Color.Empty
+                                           : style.SelectionBackColor.ForeColorForBackColor()
+                                             ?? SystemColors.HighlightText;
+        }
+
         private static Color SelectionBlend(Color c)
             => c == Color.Empty
-                ? SystemColors.Highlight
-                : SystemColors.Highlight.AlphaBlendWith(selectionAlpha, c);
+                ? Color.Empty
+                : SoftTheme.Accent.AlphaBlendWith(selectionAlpha, c);
 
         private const float selectionAlpha = 0.4f;
 

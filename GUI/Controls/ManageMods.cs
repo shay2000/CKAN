@@ -109,7 +109,545 @@ namespace CKAN.GUI
                 ResizeColumnHeaders();
                 ModGrid.ColumnWidthChanged += (sender, e) => ResizeColumnHeaders();
             }
+
+            SetupDiscoverView();
         }
+
+        #region Discover view
+
+        private ModDiscoverView?             discoverView;
+        private ModVisualMetadataService?    visualMetadata;
+        private bool                         discoverActive;
+
+        /// <summary>
+        /// Adds the card-based browsing surface next to the classic mod grid and
+        /// a pair of toolbar buttons to flip between them. Everything here is
+        /// additive; the grid keeps working exactly as before.
+        /// </summary>
+        private void SetupDiscoverView()
+        {
+            visualMetadata = new ModVisualMetadataService();
+
+            discoverView = new ModDiscoverView
+            {
+                Dock    = DockStyle.Fill,
+                Visible = false,
+            };
+            discoverView.SetArtworkService(visualMetadata);
+            discoverView.ModActivated += mod =>
+            {
+                SelectModForDetails(mod);
+                DiscoverModActivated?.Invoke(mod);
+            };
+            discoverView.ModActionClicked += ToggleModInstalled;
+            discoverView.QueueAllUpdatesRequested += QueueAllUpdates;
+            discoverView.ModContextRequested += (mod, point) =>
+            {
+                SelectModForDetails(mod);
+                ShowModContextMenu();
+            };
+            discoverView.SeeAllRequested += sectionKey =>
+            {
+                if (ModernShellMode)
+                {
+                    discoverView.ExpandShelf(sectionKey);
+                }
+                else
+                {
+                    ShowDiscoverView(false);
+                }
+            };
+            discoverView.PlayRequested += () =>
+            {
+                if (guiConfig?.CommandLines?.FirstOrDefault() is string cmd)
+                {
+                    if (!SteamLibrary.IsSteamCmdLine(cmd))
+                    {
+                        SetPlayButtonActiveInactive(true);
+                    }
+                    LaunchGame?.Invoke(cmd);
+                }
+            };
+            // The Discover box and the classic search editors are different models - one
+            // free-text field versus structured editors - so they are reconciled when the
+            // user switches views (see ApplyDiscoverSearchToGrid) rather than mirrored on
+            // every keystroke. Writing to EditModSearches.Text would achieve nothing: that
+            // control searches through SetSearches, and Control.Text is inert here.
+            discoverView.SortChanged += () =>
+            {
+                if (guiConfig != null)
+                {
+                    guiConfig.DiscoverSort = (int)discoverView.SortMode;
+                }
+            };
+            discoverView.DensityChanged += () =>
+            {
+                if (guiConfig != null)
+                {
+                    guiConfig.DiscoverDensity = (int)discoverView.Density;
+                }
+            };
+
+            Controls.Add(discoverView);
+
+            ApplySoftToolbarStyle();
+            ApplySoftGridStyle();
+
+            viewSwitcher = new SegmentedControl
+            {
+                Font = SoftTheme.ActionFont,
+            };
+            viewSwitcher.SetItems(Properties.Resources.ManageModsViewDiscover,
+                                  Properties.Resources.ManageModsViewList);
+            viewSwitcher.SelectionChanged += index => ShowDiscoverView(index == 0);
+            var switcherHost = new ToolStripControlHost(viewSwitcher)
+            {
+                AutoSize  = false,
+                Size      = viewSwitcher.PreferredControlSize,
+                Margin    = new Padding(8, 4, 12, 4),
+                Alignment = ToolStripItemAlignment.Left,
+            };
+            Toolbar.Items.Insert(0, new ToolStripSeparator());
+            Toolbar.Items.Insert(0, switcherHost);
+
+            // Note: the persisted view mode and ranking cannot be read yet, since
+            // Main has not finished loading the GUI config while this constructor
+            // runs. ApplyDiscoverSettings() picks them up on the first refresh.
+            ShowDiscoverView(true);
+        }
+
+        private SegmentedControl? viewSwitcher;
+
+        /// <summary>
+        /// Give the toolbar the same soft, flat treatment as the Discover view:
+        /// hairline borders, roomier padding and rounded hover states.
+        /// </summary>
+        private void ApplySoftToolbarStyle()
+        {
+            Toolbar.Renderer    = new SoftToolStripRenderer();
+            Toolbar.BackColor   = SoftTheme.Surface;
+            Toolbar.ForeColor   = SoftTheme.TextPrimary;
+            Toolbar.GripStyle   = ToolStripGripStyle.Hidden;
+            Toolbar.Padding     = new Padding(10, 6, 10, 6);
+            Toolbar.Font        = SoftTheme.PillButtonFont;
+            // Note: do NOT set Toolbar.RenderMode here. Assigning RenderMode to
+            // Professional replaces the Renderer above with the stock
+            // ToolStripProfessionalRenderer, which silently discards the soft styling.
+
+            foreach (ToolStripItem item in Toolbar.Items)
+            {
+                if (item is ToolStripSeparator)
+                {
+                    item.Margin = new Padding(6, 0, 6, 0);
+                }
+                else
+                {
+                    item.Margin = new Padding(3, 0, 3, 0);
+                    item.Padding = new Padding(0);
+                    item.ForeColor = SoftTheme.TextPrimary;
+                    item.Font = SoftTheme.PillButtonFont;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Bring the classic table onto the same palette as the Discover surface: soft
+        /// surfaces, hairline gridlines and soft column headers instead of the stock
+        /// raised header chrome.
+        /// </summary>
+        private void ApplySoftGridStyle()
+        {
+            ModGrid.BorderStyle = BorderStyle.None;
+            ModGrid.BackgroundColor = SoftTheme.Surface;
+            ModGrid.GridColor       = SoftTheme.Border;
+            // Without this the column headers keep the OS visual style and ignore the
+            // colors below.
+            ModGrid.EnableHeadersVisualStyles = false;
+
+            var headers = ModGrid.ColumnHeadersDefaultCellStyle;
+            headers.BackColor         = SoftTheme.Backdrop;
+            headers.ForeColor         = SoftTheme.TextSecondary;
+            headers.SelectionBackColor = SoftTheme.Backdrop;
+            headers.SelectionForeColor = SoftTheme.TextSecondary;
+
+            // Turning off the visual styles hands header sizing to the
+            // DataGridView, which then sizes the header from the cell font and
+            // the style's padding. The designer's auto-size height was tuned for
+            // the themed header, so with the theme gone the labels were clipped
+            // through their lower half. Size it from the font instead.
+            headers.Font = SoftTheme.MetaFont;
+            ModGrid.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing;
+            ModGrid.ColumnHeadersHeight = TextRenderer.MeasureText("Ag", headers.Font).Height
+                                          + headers.Padding.Vertical
+                                          + SoftTheme.ScaleInt(8, ModGrid.DeviceDpi);
+
+            var rows = ModGrid.RowsDefaultCellStyle;
+            rows.BackColor          = SoftTheme.Surface;
+            rows.ForeColor          = SoftTheme.TextPrimary;
+            rows.SelectionBackColor = SoftTheme.SurfaceSunken;
+            rows.SelectionForeColor = SoftTheme.TextSecondary;
+
+            ModGrid.DefaultCellStyle.BackColor = SoftTheme.Surface;
+            ModGrid.DefaultCellStyle.ForeColor = SoftTheme.TextPrimary;
+        }
+
+        private bool discoverSettingsLoaded;
+
+        /// <summary>
+        /// The modern shell is a native host around this control. It keeps the
+        /// CKAN-owned catalogue and changeset logic, but removes the old
+        /// toolbar/table framing from the visible surface.
+        /// </summary>
+        private bool modernShellMode;
+
+        [System.ComponentModel.DesignerSerializationVisibility(
+            System.ComponentModel.DesignerSerializationVisibility.Hidden)]
+        public bool ModernShellMode
+        {
+            get => modernShellMode;
+            set
+            {
+                if (modernShellMode == value)
+                {
+                    return;
+                }
+                modernShellMode = value;
+                if (modernShellMode)
+                {
+                    if (discoverView != null)
+                    {
+                        discoverView.ShowShelfDisclosure = false;
+                    }
+                    ShowDiscoverView(true);
+                }
+                else if (discoverView != null)
+                {
+                    Toolbar.Visible = true;
+                    discoverView.ShowHeaderActions = true;
+                    discoverView.ShowSubtitle = true;
+                    discoverView.ShowShelfDisclosure = true;
+                }
+            }
+        }
+
+        public ModDiscoverView? DiscoverView => discoverView;
+
+        public IReadOnlyList<ModChange> PendingChanges
+            => currentChangeSet ?? (IReadOnlyList<ModChange>)Array.Empty<ModChange>();
+
+        public bool HasPendingConflicts
+            => conflicts != null && conflicts.Count != 0;
+
+        public event Action<GUIMod>? DiscoverModActivated;
+
+        public void SetDiscoverFilter(DiscoverFilter value)
+        {
+            if (discoverView != null)
+            {
+                ShowDiscoverView(true);
+                discoverView.Filter = value;
+            }
+        }
+
+        public void SetDiscoverPage(DiscoverPageMode value)
+        {
+            if (discoverView != null)
+            {
+                ShowDiscoverView(true);
+                discoverView.PageMode = value;
+            }
+        }
+
+        public void SetDiscoverDensity(DiscoverDensity value)
+        {
+            if (discoverView != null)
+            {
+                ShowDiscoverView(true);
+                discoverView.Density = value;
+            }
+        }
+
+        public void FocusDiscoverSearch()
+        {
+            if (discoverView != null)
+            {
+                ShowDiscoverView(true);
+                discoverView.FocusSearch();
+            }
+        }
+
+        public void ToggleDiscoverMod(GUIMod mod)
+        {
+            ToggleModInstalled(mod);
+        }
+
+        /// <summary>
+        /// Stage every currently available update through the same SelectedMod
+        /// path as an individual card. Existing queued changes are left alone,
+        /// so the concept-art "Update all" action is safe to press repeatedly.
+        /// </summary>
+        public void QueueAllUpdates()
+        {
+            var queued = new HashSet<string>((currentChangeSet ?? Enumerable.Empty<ModChange>())
+                                             .Select(change => change.Mod.identifier),
+                                             StringComparer.Ordinal);
+            foreach (var mod in (MainModList?.Modules ?? Enumerable.Empty<GUIMod>())
+                                .Where(mod => mod.HasUpdate)
+                                .ToList())
+            {
+                if (!queued.Contains(mod.Identifier)
+                    && !mod.IsAutodetected
+                    && mod.IsInstallable()
+                    && mod.LatestCompatibleMod != null)
+                {
+                    // Updating is not an install-checkbox toggle: for an
+                    // installed mod that toggle would stage a removal.
+                    mod.SelectedMod = mod.LatestCompatibleMod;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Collections are presentation groups in the new shell. Selecting
+        /// one stages the available, installable members through CKAN's normal
+        /// SelectedMod/change-set path; it never edits GameData directly.
+        /// </summary>
+        public void QueueCollection(IEnumerable<GUIMod> mods)
+        {
+            var queued = new HashSet<string>((currentChangeSet ?? Enumerable.Empty<ModChange>())
+                                             .Select(change => change.Mod.identifier),
+                                             StringComparer.Ordinal);
+            foreach (var mod in (mods ?? Enumerable.Empty<GUIMod>())
+                                .Where(mod => !mod.IsInstalled
+                                              && !mod.IsAutodetected
+                                              && mod.IsInstallable())
+                                .ToList())
+            {
+                if (!queued.Contains(mod.Identifier) && mod.SelectedMod == null)
+                {
+                    // Stage an install rather than toggling it. Duplicate
+                    // members and repeated clicks must not cancel selection.
+                    mod.SelectedMod = mod.LatestCompatibleMod;
+                }
+            }
+        }
+
+        public void RequestApplyChanges()
+        {
+            ApplyToolButton_Click(null, null);
+        }
+
+        public void PlayConfiguredGame()
+        {
+            if (guiConfig?.CommandLines?.FirstOrDefault() is string cmd)
+            {
+                if (!SteamLibrary.IsSteamCmdLine(cmd))
+                {
+                    SetPlayButtonActiveInactive(true);
+                }
+                LaunchGame?.Invoke(cmd);
+            }
+        }
+
+        /// <summary>
+        /// Restore the user's saved Discover preferences. Called once the GUI
+        /// configuration is actually available.
+        /// </summary>
+        private void ApplyDiscoverSettings()
+        {
+            if (discoverSettingsLoaded || guiConfig == null || discoverView == null)
+            {
+                return;
+            }
+            discoverSettingsLoaded = true;
+            discoverView.SortMode = (DiscoverSortMode)guiConfig.DiscoverSort;
+            discoverView.Density = (DiscoverDensity)Math.Max(0,
+                Math.Min(2, guiConfig.DiscoverDensity));
+            // The modern shell owns the visible browser permanently. A user's
+            // old classic-grid preference must not resurrect the hidden legacy
+            // frame when the native shell first refreshes its registry.
+            ShowDiscoverView(ModernShellMode || guiConfig.DiscoverView);
+        }
+
+        /// <summary>
+        /// Swap between the Discover browser and the classic table.
+        /// </summary>
+        public void ShowDiscoverView(bool discover)
+        {
+            if (discoverView == null)
+            {
+                return;
+            }
+
+            discoverActive = discover;
+
+            // The grid's search box, install-all checkbox and hidden
+            // tags/labels bar only make sense for the table view.
+            EditModSearches.Visible            = !discover;
+            InstallAllCheckbox.Visible         = !discover && Installed.Visible;
+            hiddenTagsLabelsLinkList.Visible   = !discover;
+            ModGrid.Visible                    = !discover;
+            discoverView.Visible               = discover;
+
+            if (viewSwitcher != null)
+            {
+                viewSwitcher.SetSelectedIndexQuietly(discover ? 0 : 1);
+            }
+
+            if (guiConfig != null)
+            {
+                guiConfig.DiscoverView = discover;
+            }
+
+            if (discover)
+            {
+                if (ModernShellMode)
+                {
+                    Toolbar.Visible            = false;
+                    EditModSearches.Visible    = false;
+                    InstallAllCheckbox.Visible = false;
+                    hiddenTagsLabelsLinkList.Visible = false;
+                    ModGrid.Visible            = false;
+                    discoverView.ShowHeaderActions = false;
+                    discoverView.ShowSubtitle      = false;
+                }
+                discoverView.BringToFront();
+                RefreshDiscoverView();
+            }
+            else
+            {
+                // Carry the Discover query into the table so the user lands on the same
+                // set of mods instead of the full list.
+                ApplyDiscoverSearchToGrid();
+                ModGrid.Focus();
+            }
+        }
+
+        private bool applyingDiscoverSearch;
+
+        /// <summary>
+        /// Translate the Discover query into the classic search editors. Only the
+        /// Discover-to-table direction is mirrored: the table's structured searches
+        /// (licenses, relationships, labels, tri-state flags) have no faithful
+        /// single-line equivalent to push back into the Discover box.
+        /// </summary>
+        private void ApplyDiscoverSearchToGrid()
+        {
+            if (applyingDiscoverSearch || currentInstance == null || discoverView == null)
+            {
+                return;
+            }
+
+            applyingDiscoverSearch = true;
+            try
+            {
+                string query = discoverView.SearchText.Trim();
+                var searches = new List<ModSearch>();
+                if (query.Length > 0)
+                {
+                    ModSearch? parsed = ModSearch.Parse(ModuleLabelList.ModuleLabels,
+                                                        currentInstance,
+                                                        query);
+                    if (parsed != null)
+                    {
+                        searches.Add(parsed);
+                    }
+                }
+                EditModSearches.SetSearches(searches);
+            }
+            finally
+            {
+                applyingDiscoverSearch = false;
+            }
+        }
+
+        private bool refreshingDiscover;
+
+        private void RefreshDiscoverView()
+        {
+            if (discoverView == null || refreshingDiscover)
+            {
+                return;
+            }
+            refreshingDiscover = true;
+            try
+            {
+                // May flip the visible view, which re-enters this method; the
+                // guard keeps that to a single rebuild of the shelves.
+                ApplyDiscoverSettings();
+                var modules = MainModList?.Modules ?? Enumerable.Empty<GUIMod>();
+                discoverView.SetMods(modules, currentChangeSet);
+                discoverView.Highlight(SelectedModule);
+            }
+            finally
+            {
+                refreshingDiscover = false;
+            }
+        }
+
+        /// <summary>
+        /// Select a mod from a Discover card: drive the grid when the mod is in
+        /// it (so the shared context menu and change set stay consistent), and
+        /// fall back to notifying the detail pane directly when a filter hides it.
+        /// </summary>
+        private void SelectModForDetails(GUIMod mod)
+        {
+            discoverView?.Highlight(mod);
+
+            if (MainModList != null
+                && MainModList.full_list_of_mod_rows.TryGetValue(mod.Identifier, out DataGridViewRow? row)
+                && ModGrid.Rows.Contains(row))
+            {
+                row.Selected = true;
+                ModGrid.CurrentCell = row.Cells[SelectableColumnIndex()];
+            }
+            else
+            {
+                OnSelectedModuleChanged?.Invoke(mod);
+                NavSelectMod(mod);
+            }
+        }
+
+        /// <summary>
+        /// Select a catalogue item from the native shell's command palette while
+        /// preserving the same detail-pane and navigation behavior as a card.
+        /// </summary>
+        public void SelectDiscoverMod(GUIMod mod)
+        {
+            SelectModForDetails(mod);
+        }
+
+        /// <summary>
+        /// Install/queue or remove a mod straight from its card. Writes through
+        /// the same GUIMod property the grid's checkbox uses, so the change set,
+        /// conflicts and dry-run logic are all shared.
+        /// </summary>
+        private void ToggleModInstalled(GUIMod mod)
+        {
+            if (mod.IsAutodetected || !mod.IsInstallable())
+            {
+                return;
+            }
+
+            var installed = mod.InstalledMod?.Module;
+
+            // A queued update shows "In queue" on the card, so clicking it must cancel
+            // the update. Clearing SelectedMod here would be read by GetModChanges as
+            // "remove the installed mod", which is not what the button says.
+            if (mod.SelectedMod != null
+                && installed != null
+                && mod.SelectedMod.version > installed.version)
+            {
+                mod.SelectedMod = installed;
+                return;
+            }
+
+            mod.SelectedMod = mod.SelectedMod == null
+                ? installed ?? mod.LatestCompatibleMod
+                : null;
+        }
+
+        #endregion
 
         private void ResizeColumnHeaders()
         {
@@ -247,6 +785,9 @@ namespace CKAN.GUI
                         }
                     }
                 }
+
+                // Keep the Discover cards' badges in step with the change set
+                discoverView?.SetChangeSet(ChangeSet);
             });
         }
 
@@ -765,6 +1306,7 @@ namespace CKAN.GUI
             if (module != null)
             {
                 NavSelectMod(module);
+                discoverView?.Highlight(module);
             }
         }
 
@@ -1242,9 +1784,9 @@ namespace CKAN.GUI
         {
             Util.Invoke(this, () =>
             {
-                // Give the selected row the standard highlight color
-                ModGrid.RowsDefaultCellStyle.SelectionBackColor = SystemColors.Highlight;
-                ModGrid.RowsDefaultCellStyle.SelectionForeColor = SystemColors.HighlightText;
+                // Soft accent tint instead of the system highlight blue
+                ModGrid.RowsDefaultCellStyle.SelectionBackColor = SoftTheme.AccentSoft;
+                ModGrid.RowsDefaultCellStyle.SelectionForeColor = SoftTheme.TextPrimary;
             });
         }
 
@@ -1252,9 +1794,9 @@ namespace CKAN.GUI
         {
             Util.Invoke(this, () =>
             {
-                // Gray out the selected row so you can tell the mod list is not focused
-                ModGrid.RowsDefaultCellStyle.SelectionBackColor = SystemColors.Control;
-                ModGrid.RowsDefaultCellStyle.SelectionForeColor = SystemColors.ControlText;
+                // Muted so you can tell the mod list is not focused
+                ModGrid.RowsDefaultCellStyle.SelectionBackColor = SoftTheme.SurfaceSunken;
+                ModGrid.RowsDefaultCellStyle.SelectionForeColor = SoftTheme.TextSecondary;
             });
         }
 
@@ -1812,6 +2354,14 @@ namespace CKAN.GUI
 
             ClearStatusBar?.Invoke();
             Util.Invoke(this, () => ModGrid.Focus());
+            Util.Invoke(this, () =>
+            {
+                RefreshDiscoverView();
+                if (discoverActive)
+                {
+                    discoverView?.BringToFront();
+                }
+            });
             return true;
         }
 
@@ -2058,7 +2608,8 @@ namespace CKAN.GUI
                 hiddenTagsLabelsLinkList.UpdateTagsAndLabels(tags, labels);
                 Util.Invoke(hiddenTagsLabelsLinkList, () =>
                 {
-                    hiddenTagsLabelsLinkList.Visible = tags.Count > 0 || labels.Count > 0;
+                    hiddenTagsLabelsLinkList.Visible = !discoverActive
+                                                       && (tags.Count > 0 || labels.Count > 0);
                     if (tags.Count > 0 || labels.Count > 0)
                     {
                         hiddenTagsLabelsLinkList.Controls.Add(new Label()
@@ -2209,6 +2760,11 @@ namespace CKAN.GUI
 
         public void FocusSearch(bool expandCollapse = false)
         {
+            if (discoverActive && discoverView != null)
+            {
+                discoverView.Focus();
+                return;
+            }
             ActiveControl = EditModSearches;
             EditModSearches.Focus();
             if (expandCollapse)
