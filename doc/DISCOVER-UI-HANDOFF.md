@@ -249,13 +249,13 @@ Work is on `feature/netflix-ui`; do not merge or push to `master`.
 The user authorised fixes, regression tests, handoff updates and checkpoint pushes
 on the existing PR. Starting commit: `504633b884cfb9d4fca48c5d054e4d2f965036f6`.
 
-### In progress
+### Completion boundary
 
-- Independently verify the review's bulk-update staging bug in `ManageMods`.
-- Review artwork request scheduling, duplicates and cancellation.
-- Review catalogue keyboard activation and reveal-animation resource ownership.
-- Remove or correct misleading settings without weakening download integrity.
-- Build both GUI frameworks and run feasible automated tests.
+This repair pass targets the existing PR only; merging is not authorised.
+The final production diff passed independent read-only review with no blocking
+findings. Native Windows/KSP testing remains outstanding and must not be
+reported as passed. In particular, check real Enter/Space dispatch, rapid mod
+selection, cancel-and-refetch, and disposal during a fetch on Windows.
 
 ### Environment and verification boundaries
 
@@ -282,8 +282,46 @@ remains required. Never substitute the HTML concept art for native UI evidence.
   86 assertions; settings 3 source-contract tests and 1 runtime harness (14
   assertions); bulk actions 15 assertions. All passed. Runtime harnesses compile
   actual source methods against doubles, NOT a native Windows UI.
-- Follow-up investigation: gallery ModCard keyboard routing and signed tick
-  rollover in PaneReveal. Do not confuse these with already verified fixes.
+- Second checkpoint pushed: `298b16d9`; remote branch and PR head verified.
+- Gallery ModCard Enter/Space now uses details activation too; 350 assertions
+  across 7 statuses passed, including unchanged explicit mouse routing.
+- PaneReveal signed TickCount rollover reproduced against the previous commit:
+  6 failures (invalid opacity and a pane left hidden). All 40 scenarios now pass
+  with unchecked 32-bit elapsed-time subtraction. The worker hit a usage limit;
+  the parent recovered its edits and independently ran baseline/fixed tests.
+- Changelog request ownership now prevents stale success, errors or finally
+  blocks from mutating a newer request or a disposed view. Cancellation resets
+  the fetch button immediately. Eight controlled-task scenarios passed after
+  reproducing the race and stuck-button failures.
+- GitHub changelog URLs require an exact supported host and HTTP(S), and reject
+  an empty repository after `.git` removal. Five invalid cases previously
+  passed validation. Matching GitHub versions now enrich local release notes
+  instead of being discarded, preserving local badges/version/date. The
+  combined service harness passes 16 cases (URL, merging and fallbacks).
+
+### Re-run the final automated checks
+
+With a .NET 10 SDK and Python 3 installed, from the repository root:
+
+```sh
+python3 qa/run_discover_regressions.py --dotnet /path/to/dotnet
+dotnet build GUI/CKAN-GUI.csproj -f net481
+dotnet build GUI/CKAN-GUI.csproj -f net10.0-windows
+dotnet test Tests/Tests.csproj -f net10.0 -p:EnableWindowsTargeting=true
+```
+
+Latest parent-run results: all 9 portable suites passed; 1,319 NUnit tests
+passed; both GUI builds passed with zero errors (48/52 existing warnings).
+The suites contain assertions as well as unittest cases; do not add their
+counts together and call that a native UI test total. Portable harnesses use
+production methods/classes but replace UI, timing, network and some model
+collaborators. Actual WinForms dispatch, drawing, KSP install changes and
+network integration remain unverified here.
+
+Remaining follow-ups, not part of this pass: Windows manual checklist;
+dependency vulnerability remediation; modern shell registry timestamps display
+the current clock rather than a proven refresh time; the settings Change label
+is inert; download-cache details reuse artwork-cache wording.
 
 - Initial investigation: working tree clean; PR #1 open; remote matches starting
   commit. Review findings are leads, not independently verified facts yet.

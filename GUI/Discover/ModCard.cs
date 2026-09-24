@@ -763,8 +763,11 @@ namespace CKAN.GUI
             {
                 case Keys.Enter:
                 case Keys.Space:
-                    ActionClicked?.Invoke(this);
+                    // Activating a card opens details, just like clicking its body.
+                    // Never stage an install/removal merely by pressing Enter/Space.
+                    Activated?.Invoke(this);
                     e.Handled = true;
+                    e.SuppressKeyPress = true;
                     break;
             }
             base.OnKeyDown(e);

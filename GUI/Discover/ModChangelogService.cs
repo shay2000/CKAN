@@ -105,14 +105,36 @@ namespace CKAN.GUI
             var local  = GetLocalHistory(registry, mod);
             var github = await GetGithubReleasesAsync(mod.Module, ct).ConfigureAwait(false);
 
-            var seen = new HashSet<string>(local.Select(entry => NormalizeVersion(entry.Version)),
-                                           StringComparer.OrdinalIgnoreCase);
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var result = new List<ModChangelogEntry>(local);
             foreach (var entry in github)
             {
-                if (seen.Add(NormalizeVersion(entry.Version)))
+                string version = NormalizeVersion(entry.Version);
+                if (!seen.Add(version))
+                {
+                    continue;
+                }
+                int index = result.FindIndex(existing => string.Equals(
+                    NormalizeVersion(existing.Version), version, StringComparison.OrdinalIgnoreCase));
+                if (index < 0)
                 {
                     result.Add(entry);
+                }
+                else
+                {
+                    // A version already in CKAN still needs its release notes.
+                    // Preserve registry-derived selection and installation state.
+                    var existing = result[index];
+                    result[index] = new ModChangelogEntry(
+                        existing.Version,
+                        existing.ReleaseDate ?? entry.ReleaseDate,
+                        existing.IsInstalled,
+                        existing.IsLatest,
+                        existing.IsSelected,
+                        entry.Title ?? existing.Title,
+                        string.IsNullOrWhiteSpace(entry.Notes) ? existing.Notes : entry.Notes,
+                        entry.Source,
+                        entry.Url ?? existing.Url);
                 }
             }
             return result;
@@ -162,7 +184,9 @@ namespace CKAN.GUI
             var uri = mod.resources?.repository;
             if (uri == null
                 || !uri.IsAbsoluteUri
-                || uri.Host.IndexOf("github.com", StringComparison.OrdinalIgnoreCase) < 0)
+                || (uri.Scheme != Uri.UriSchemeHttps && uri.Scheme != Uri.UriSchemeHttp)
+                || !(uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase)
+                     || uri.Host.Equals("www.github.com", StringComparison.OrdinalIgnoreCase)))
             {
                 return false;
             }
@@ -180,7 +204,7 @@ namespace CKAN.GUI
             {
                 repo = repo.Substring(0, repo.Length - ".git".Length);
             }
-            return true;
+            return repo.Length > 0;
         }
 
         private static string FetchReleasesJson(string owner, string repo)

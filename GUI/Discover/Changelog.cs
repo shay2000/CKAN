@@ -263,15 +263,18 @@ namespace CKAN.GUI
                 return;
             }
 
+            CancelFetch();
+            var cancellation = new CancellationTokenSource();
+            var token = cancellation.Token;
+            fetchCancellation = cancellation;
             fetchButton.Enabled = false;
             fetchButton.Text = Properties.Resources.ChangelogFetching;
-            CancelFetch();
-            fetchCancellation = new CancellationTokenSource();
             try
             {
-                var entries = await service.GetFullChangelogAsync(registry, mod,
-                                                                  fetchCancellation.Token);
-                if (selectedModule == mod)
+                var entries = await service.GetFullChangelogAsync(registry, mod, token);
+                if (!IsDisposed && !token.IsCancellationRequested
+                    && ReferenceEquals(fetchCancellation, cancellation)
+                    && selectedModule == mod)
                 {
                     SetEntries(entries, true);
                 }
@@ -281,23 +284,39 @@ namespace CKAN.GUI
             }
             catch
             {
-                sourceNote.Text = Properties.Resources.ChangelogFetchFailed;
+                if (!IsDisposed && ReferenceEquals(fetchCancellation, cancellation))
+                {
+                    sourceNote.Text = Properties.Resources.ChangelogFetchFailed;
+                }
             }
             finally
             {
-                if (!IsDisposed)
+                // An earlier request may finish after cancellation and a new
+                // fetch. Only the current request owns the button and token.
+                if (ReferenceEquals(fetchCancellation, cancellation))
                 {
-                    fetchButton.Enabled = true;
-                    fetchButton.Text = Properties.Resources.ChangelogFetchButton;
+                    fetchCancellation = null;
+                    cancellation.Dispose();
+                    if (!IsDisposed)
+                    {
+                        fetchButton.Enabled = true;
+                        fetchButton.Text = Properties.Resources.ChangelogFetchButton;
+                    }
                 }
             }
         }
 
         private void CancelFetch()
         {
-            fetchCancellation?.Cancel();
-            fetchCancellation?.Dispose();
+            var cancellation = fetchCancellation;
             fetchCancellation = null;
+            cancellation?.Cancel();
+            cancellation?.Dispose();
+            if (!IsDisposed)
+            {
+                fetchButton.Enabled = true;
+                fetchButton.Text = Properties.Resources.ChangelogFetchButton;
+            }
         }
 
         protected override void OnResize(EventArgs e)

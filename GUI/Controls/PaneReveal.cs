@@ -59,7 +59,7 @@ namespace CKAN.GUI
         private readonly Timer   timer;
 
         private Bitmap? frame;
-        private long    startedAt;
+        private int     startedAt;
         private int     travel;
         private bool    running;
 
@@ -140,7 +140,7 @@ namespace CKAN.GUI
         private void Step()
         {
             if (!running || frame == null
-                || Environment.TickCount - startedAt >= DurationMs)
+                || unchecked(Environment.TickCount - startedAt) >= DurationMs)
             {
                 Finish();
                 return;
@@ -155,7 +155,8 @@ namespace CKAN.GUI
                 return;
             }
 
-            float t = Math.Min(1f, (Environment.TickCount - startedAt) / (float)DurationMs);
+            // Keep subtraction 32-bit so a TickCount rollover preserves elapsed time.
+            float t = Math.Min(1f, unchecked(Environment.TickCount - startedAt) / (float)DurationMs);
 
             // Ease-out cubic. The content covers most of its distance almost
             // immediately and then settles, which is the curve the platforms
